@@ -742,6 +742,8 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
             return self._send_file(STATIC_DIR / "index.html", "text/html; charset=utf-8")
         if parsed.path == "/app.css":
             return self._send_file(STATIC_DIR / "app.css", "text/css; charset=utf-8")
+        if parsed.path == "/comparison_logic.js":
+            return self._send_file(STATIC_DIR / "comparison_logic.js", "text/javascript; charset=utf-8")
         if parsed.path == "/app.js":
             return self._send_file(STATIC_DIR / "app.js", "text/javascript; charset=utf-8")
         return self.send_error(404, "Not found")

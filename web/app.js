@@ -297,21 +297,23 @@ function renderComparisons(comparisons) {
     ["quantity", "数量", formatNumber],
     ["customers", "客户数", formatNumber],
   ];
+  const fallback = currentPayload?.kpis || {};
   els.comparisonGrid.innerHTML = blocks
     .map(([key, title]) => {
       const comparison = comparisons[key] || {};
       return `
         <article class="comparison-card">
           <h4>${title}</h4>
-          ${metrics.map(([metric, label, formatter]) => renderComparisonMetric(label, comparison[metric], formatter)).join("")}
+          ${metrics.map(([metric, label, formatter]) => renderComparisonMetric(label, comparison[metric], formatter, fallback[metric])).join("")}
         </article>
       `;
     })
     .join("");
 }
 
-function renderComparisonMetric(label, metric, formatter) {
-  if (!metric) {
+function renderComparisonMetric(label, metric, formatter, fallbackCurrent = 0) {
+  const view = window.buildComparisonMetricView(metric, fallbackCurrent);
+  if (!view.hasData) {
     return `
       <div class="comparison-line muted-line">
         <span>${label}</span>
@@ -319,17 +321,13 @@ function renderComparisonMetric(label, metric, formatter) {
       </div>
     `;
   }
-  const hasBaseline = Boolean(metric.hasBaseline);
-  const delta = hasBaseline ? Number(metric.delta || 0) : Number(metric.current || 0);
+  const delta = Number(view.delta || 0);
   const tone = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
   const sign = delta > 0 ? "+" : "";
-  const percent = hasBaseline && metric.percent !== null && metric.percent !== undefined
-    ? ` (${sign}${formatNumber(metric.percent)}%)`
-    : "";
   return `
     <div class="comparison-line ${tone}">
       <span>${label}</span>
-      <strong>${sign}${formatter(delta)}${percent}</strong>
+      <strong>${sign}${formatter(delta)}${view.percentText}</strong>
     </div>
   `;
 }
