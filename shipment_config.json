@@ -1,0 +1,19 @@
+{
+  "sources": [
+    "C:\\Users\\Administrator\\Desktop\\奥科泰,科泰顺2026年6月发货统计表(现金).xlsx",
+    "C:\\Users\\Administrator\\Desktop\\奥科泰2026年6月发货统计表（含税）.xlsx",
+    "C:\\Users\\Administrator\\Desktop\\科泰顺2026年6月发货统计表.xlsx"
+  ],
+  "output_dir": "C:\\Users\\Administrator\\Desktop",
+  "high_value_threshold": 100000,
+  "product_name_rules": [
+    { "model": "纯胶膜", "use_spec_as_name": true },
+    { "model": "覆盖膜", "use_spec_as_name": true },
+    { "model": "保护膜", "use_spec_as_name": true },
+    { "model": "离型膜", "use_spec_as_name": true }
+  ],
+  "aliases": {
+    "customers": {},
+    "models": {}
+  }
+}

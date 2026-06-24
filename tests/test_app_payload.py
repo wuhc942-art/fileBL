@@ -1,0 +1,227 @@
+import datetime as dt
+import unittest
+
+from app_server import build_dashboard_payload
+from summarize_shipments import SummaryResult
+
+
+class DashboardPayloadTest(unittest.TestCase):
+    def _result(self, date, rows, by_customer=None, sources=None):
+        if by_customer is None:
+            customer_map = {}
+            for row in rows:
+                key = row["客户"]
+                item = customer_map.setdefault(key, {"客户": key, "发货笔数": 0, "数量": 0.0, "金额": 0.0})
+                item["发货笔数"] += 1
+                item["数量"] += row["数量"]
+                item["金额"] += row["金额"]
+            by_customer = sorted(customer_map.values(), key=lambda item: item["金额"], reverse=True)
+        return SummaryResult(
+            date=date,
+            sources=sources or sorted({row["来源文件"] for row in rows}),
+            rows=rows,
+            by_customer=by_customer,
+            total_rows=len(rows),
+            total_amount=sum(row["金额"] for row in rows),
+            total_quantity=sum(row["数量"] for row in rows),
+            customer_count=len({row["客户"] for row in rows}),
+        )
+
+    def test_build_dashboard_payload_groups_models_and_sources(self):
+        result = SummaryResult(
+            date=dt.date(2026, 6, 23),
+            sources=["a.xlsx", "b.xlsx"],
+            rows=[
+                {
+                    "来源文件": "a.xlsx",
+                    "客户": "客户A",
+                    "型号/品名": "型号1",
+                    "规格": "规格1",
+                    "单位": "㎡",
+                    "数量": 2.0,
+                    "单价": 50.0,
+                    "金额": 100.0,
+                    "送货单号": "D1",
+                    "订单号": "O1",
+                },
+                {
+                    "来源文件": "b.xlsx",
+                    "客户": "客户B",
+                    "型号/品名": "型号1",
+                    "规格": "规格2",
+                    "单位": "㎡",
+                    "数量": 3.0,
+                    "单价": 50.0,
+                    "金额": 150.0,
+                    "送货单号": "D2",
+                    "订单号": "O2",
+                },
+                {
+                    "来源文件": "b.xlsx",
+                    "客户": "客户B",
+                    "型号/品名": "型号2",
+                    "规格": "规格3",
+                    "单位": "张",
+                    "数量": 4.0,
+                    "单价": 20.0,
+                    "金额": 80.0,
+                    "送货单号": "D3",
+                    "订单号": "O3",
+                },
+                {
+                    "来源文件": "b.xlsx",
+                    "客户": "客户C",
+                    "型号/品名": "型号3",
+                    "规格": "规格4",
+                    "单位": "㎡",
+                    "数量": -1.0,
+                    "单价": 0.0,
+                    "金额": 0.0,
+                    "送货单号": "",
+                    "订单号": "O4",
+                },
+            ],
+            by_customer=[
+                {"客户": "客户B", "发货笔数": 2, "数量": 7.0, "金额": 230.0},
+                {"客户": "客户A", "发货笔数": 1, "数量": 2.0, "金额": 100.0},
+            ],
+            total_rows=4,
+            total_amount=330.0,
+            total_quantity=8.0,
+            customer_count=3,
+        )
+
+        payload = build_dashboard_payload(result)
+
+        self.assertEqual(payload["kpis"]["rows"], 4)
+        self.assertEqual(payload["kpis"]["customers"], 3)
+        self.assertEqual(payload["charts"]["models"][0]["name"], "型号1")
+        self.assertEqual(payload["charts"]["models"][0]["amount"], 250.0)
+        self.assertEqual(payload["charts"]["sources"][0]["name"], "b.xlsx")
+        self.assertEqual(payload["charts"]["sources"][0]["amount"], 230.0)
+        self.assertEqual(payload["rows"][0]["customer"], "客户A")
+        self.assertEqual(payload["anomalies"]["total"], 4)
+        self.assertEqual(payload["anomalies"]["counts"]["zeroAmount"], 1)
+        self.assertEqual(payload["anomalies"]["counts"]["negativeQuantity"], 1)
+        self.assertEqual(payload["anomalies"]["counts"]["missingDeliveryNo"], 1)
+        self.assertEqual(payload["anomalies"]["counts"]["missingPrice"], 1)
+        self.assertEqual(payload["customerDetails"]["客户B"][0]["model"], "型号1")
+        self.assertIsNone(payload["fileCheck"]["expected"])
+        self.assertEqual(payload["fileCheck"]["actual"], 2)
+        self.assertEqual(payload["fileCheck"]["status"], "ready")
+        self.assertTrue(any("客户B" in insight for insight in payload["insights"]))
+        self.assertTrue(any("型号1" in insight for insight in payload["insights"]))
+
+
+    def test_build_dashboard_payload_includes_business_speed_metrics(self):
+        today = self._result(
+            dt.date(2026, 6, 23),
+            [
+                {
+                    "来源文件": "奥科泰2026年6月发货统计表（含税）.xlsx",
+                    "客户": "大客户A",
+                    "型号/品名": "型号A",
+                    "规格": "",
+                    "单位": "卷",
+                    "数量": 10.0,
+                    "单价": 20000.0,
+                    "金额": 200000.0,
+                    "送货单号": "D1",
+                    "订单号": "O1",
+                },
+                {
+                    "来源文件": "科泰顺2026年6月发货统计表(现金).xlsx",
+                    "客户": "新客户B",
+                    "型号/品名": "型号A",
+                    "规格": "",
+                    "单位": "卷",
+                    "数量": 4.0,
+                    "单价": 10000.0,
+                    "金额": 40000.0,
+                    "送货单号": "D2",
+                    "订单号": "O2",
+                },
+            ],
+        )
+        yesterday = self._result(
+            dt.date(2026, 6, 22),
+            [
+                {
+                    "来源文件": "奥科泰2026年6月发货统计表（含税）.xlsx",
+                    "客户": "老客户C",
+                    "型号/品名": "型号C",
+                    "规格": "",
+                    "单位": "卷",
+                    "数量": 7.0,
+                    "单价": 10000.0,
+                    "金额": 70000.0,
+                    "送货单号": "D3",
+                    "订单号": "O3",
+                }
+            ],
+        )
+        last_week = self._result(dt.date(2026, 6, 16), [])
+
+        payload = build_dashboard_payload(today, {"yesterday": yesterday, "lastWeek": last_week})
+
+        self.assertEqual(payload["comparisons"]["yesterday"]["amount"]["delta"], 170000.0)
+        self.assertEqual(payload["comparisons"]["yesterday"]["quantity"]["delta"], 7.0)
+        self.assertEqual(payload["comparisons"]["yesterday"]["customers"]["delta"], 1)
+        self.assertFalse(payload["comparisons"]["lastWeek"]["amount"]["hasBaseline"])
+        self.assertEqual(payload["modelDetails"]["型号A"][0]["customer"], "大客户A")
+        self.assertEqual(payload["modelDetails"]["型号A"][1]["customer"], "新客户B")
+        self.assertEqual(payload["amountStructure"]["taxType"][0]["name"], "含税")
+        self.assertEqual(payload["amountStructure"]["taxType"][0]["amount"], 200000.0)
+        self.assertEqual(payload["amountStructure"]["company"][0]["name"], "奥科泰")
+        self.assertEqual(payload["businessAlerts"]["highValueCustomers"][0]["customer"], "大客户A")
+        self.assertIn("新客户B", payload["businessAlerts"]["newCustomers"])
+        self.assertIn("老客户C", payload["businessAlerts"]["silentCustomers"])
+
+
+    def test_business_alerts_use_full_history_context_when_available(self):
+        today = self._result(
+            dt.date(2026, 6, 23),
+            [
+                {
+                    "\u6765\u6e90\u6587\u4ef6": "today.xlsx",
+                    "\u5ba2\u6237": "\u65b0\u5ba2\u6237",
+                    "\u578b\u53f7/\u54c1\u540d": "\u578b\u53f7A",
+                    "\u89c4\u683c": "",
+                    "\u5355\u4f4d": "\u5377",
+                    "\u6570\u91cf": 1.0,
+                    "\u5355\u4ef7": 100.0,
+                    "\u91d1\u989d": 100.0,
+                    "\u9001\u8d27\u5355\u53f7": "D1",
+                    "\u8ba2\u5355\u53f7": "O1",
+                },
+                {
+                    "\u6765\u6e90\u6587\u4ef6": "today.xlsx",
+                    "\u5ba2\u6237": "\u56de\u6d41\u5ba2\u6237",
+                    "\u578b\u53f7/\u54c1\u540d": "\u578b\u53f7B",
+                    "\u89c4\u683c": "",
+                    "\u5355\u4f4d": "\u5377",
+                    "\u6570\u91cf": 1.0,
+                    "\u5355\u4ef7": 200.0,
+                    "\u91d1\u989d": 200.0,
+                    "\u9001\u8d27\u5355\u53f7": "D2",
+                    "\u8ba2\u5355\u53f7": "O2",
+                },
+            ],
+        )
+        history_context = {
+            "knownCustomersBefore": ["老客户", "沉默客户", "回流客户"],
+            "activeCustomersBefore": ["沉默客户"],
+            "returningCustomers": ["回流客户"],
+            "atRiskCustomers": ["沉默客户"],
+        }
+
+        payload = build_dashboard_payload(today, history_context=history_context)
+
+        self.assertEqual(payload["businessAlerts"]["newCustomers"], ["新客户"])
+        self.assertEqual(payload["businessAlerts"]["silentCustomers"], ["沉默客户"])
+        self.assertEqual(payload["businessAlerts"]["returningCustomers"], ["回流客户"])
+        self.assertEqual(payload["businessAlerts"]["atRiskCustomers"], ["沉默客户"])
+
+
+if __name__ == "__main__":
+    unittest.main()
