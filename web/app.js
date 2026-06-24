@@ -49,6 +49,7 @@ const els = {
   templateButtons: document.querySelectorAll(".template-button"),
   importCheckPanel: document.querySelector("#importCheckPanel"),
   importCheckSummary: document.querySelector("#importCheckSummary"),
+  importSummaryCards: document.querySelector("#importSummaryCards"),
   importCheckList: document.querySelector("#importCheckList"),
   anomalyReviewList: document.querySelector("#anomalyReviewList"),
   ruleSummary: document.querySelector("#ruleSummary"),
@@ -133,7 +134,8 @@ async function summarize() {
     currentPayload = payload;
     updateWelcomeVisibility(true);
     render(payload);
-    setStatus("ready", "已生成", `找到 ${payload.kpis.rows} 笔发货记录，金额 ${formatMoney(payload.kpis.amount)}。`);
+    const importMessage = payload.importSummary?.message ? `${payload.importSummary.message} ` : "";
+    setStatus("ready", "已生成", `${importMessage}当前日期找到 ${payload.kpis.rows} 笔发货记录，金额 ${formatMoney(payload.kpis.amount)}。`);
   } catch (error) {
     currentPayload = null;
     updateWelcomeVisibility(false);
@@ -200,6 +202,7 @@ function render(payload) {
   renderInsights(payload.insights || []);
   renderFileCheck(payload.fileCheck);
   renderImportChecks(payload.importChecks);
+  renderImportSummary(payload.importSummary);
   renderAnomalies(payload.anomalies);
   renderRules();
   renderCustomerTable(payload.customers);
@@ -240,7 +243,43 @@ function renderImportChecks(importChecks) {
       <div class="import-check-item ${escapeHtml(item.status)}">
         <strong>${escapeHtml(item.file)}</strong>
         <span>${escapeHtml((item.messages || []).join("；"))}</span>
-        <small>发货明细：${item.hasDetailSheet ? "已识别" : "未识别"} · 日期列：${item.hasDateColumn ? "已识别" : "未识别"} · 月份：${item.monthMatched ? "匹配" : "需核对"}</small>
+        <div class="sheet-checks">
+          ${renderSheetCheck("发货历史记录", item.sheets?.["发货历史记录"])}
+          ${renderSheetCheck("发货明细", item.sheets?.["发货明细"])}
+        </div>
+        <small>日期列：${item.hasDateColumn ? "已识别" : "未识别"} · 月份：${item.monthMatched ? "匹配" : "需核对"}</small>
+      </div>
+    `)
+    .join("");
+}
+
+function renderSheetCheck(name, sheet) {
+  const ok = sheet?.hasSheet && sheet?.hasDateColumn;
+  const tone = ok ? "ok" : "warn";
+  let status = "缺少工作表";
+  if (sheet?.hasSheet && !sheet?.hasDateColumn) status = "缺少日期列";
+  if (ok && !sheet?.monthMatched) status = "月份需核对";
+  if (ok && sheet?.monthMatched) status = "检查通过";
+  return `<span class="sheet-check ${tone}" title="${escapeHtml(sheet?.message || "")}">${escapeHtml(name)}：${status}</span>`;
+}
+
+function renderImportSummary(summary) {
+  if (!els.importSummaryCards) return;
+  if (!summary) {
+    els.importSummaryCards.innerHTML = "";
+    return;
+  }
+  const cards = [
+    ["读取", summary.readRows],
+    ["新增", summary.insertedRows],
+    ["跳过重复", summary.skippedDuplicateRows],
+    ["错误文件", summary.errorRows],
+  ];
+  els.importSummaryCards.innerHTML = cards
+    .map(([label, value]) => `
+      <div class="import-summary-card">
+        <span>${label}</span>
+        <strong>${formatNumber(value)}</strong>
       </div>
     `)
     .join("");

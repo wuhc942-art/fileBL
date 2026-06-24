@@ -580,6 +580,33 @@ h3 {
   padding: 14px 16px 16px;
 }
 
+.import-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 16px 0;
+}
+
+.import-summary-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfdfd;
+}
+
+.import-summary-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.import-summary-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
 .import-check-item {
   display: grid;
   gap: 4px;
@@ -604,6 +631,33 @@ h3 {
 .rule-summary span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.sheet-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sheet-check {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.sheet-check.ok {
+  border-color: rgb(8 127 140 / 0.28);
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.sheet-check.warn {
+  border-color: rgb(183 121 31 / 0.36);
+  color: #75510c;
+  background: #fff8ea;
 }
 
 .mini-table {
@@ -1029,6 +1083,10 @@ th.num {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .import-summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .source-block {
     grid-column: auto;
   }
@@ -1064,6 +1122,7 @@ th.num {
   .comparison-grid,
   .business-alert-grid,
   .structure-grid,
+  .import-summary-cards,
   .drawer-stats {
     grid-template-columns: 1fr;
   }

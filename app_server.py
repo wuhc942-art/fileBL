@@ -18,7 +18,9 @@ from urllib.parse import parse_qs, urlparse
 from history_store import load_history_rows, save_history_rows
 from summarize_shipments import (
     DETAIL_SHEET,
+    HISTORY_SHEET,
     SHIP_DATE,
+    SHIPMENT_SHEETS,
     SummaryResult,
     configure_business_rules,
     extract_all_shipments,
@@ -136,32 +138,63 @@ def _source_check(path: Path, target_date: dt.date) -> dict:
         "status": "ready",
         "messages": [],
         "hasDetailSheet": False,
+        "hasHistorySheet": False,
         "hasDateColumn": False,
         "monthMatched": False,
+        "sheets": {},
     }
-    try:
-        rows = read_sheet_rows(path, DETAIL_SHEET)
-        check["hasDetailSheet"] = True
-        header_idx, headers = find_header(rows)
-        check["hasDateColumn"] = normalize_header(SHIP_DATE) in headers
-        dates = []
-        ship_date_idx = headers.get(normalize_header(SHIP_DATE))
-        if ship_date_idx is not None:
-            for row in rows[header_idx + 1 :]:
-                if ship_date_idx < len(row):
-                    parsed = parse_date(row[ship_date_idx])
-                    if parsed:
-                        dates.append(parsed)
-        check["monthMatched"] = any(date.year == target_date.year and date.month == target_date.month for date in dates)
-        if not check["monthMatched"]:
-            check["status"] = "warning"
-            check["messages"].append("未发现统计月份内的送货日期")
-        if not check["hasDateColumn"]:
-            check["status"] = "error"
-            check["messages"].append("未识别到送货日期列")
-    except Exception as exc:
+    for sheet_name in SHIPMENT_SHEETS:
+        sheet_check = {
+            "hasSheet": False,
+            "hasDateColumn": False,
+            "monthMatched": False,
+            "message": "",
+        }
+        try:
+            rows = read_sheet_rows(path, sheet_name)
+            sheet_check["hasSheet"] = True
+            header_idx, headers = find_header(rows)
+            sheet_check["hasDateColumn"] = normalize_header(SHIP_DATE) in headers
+            dates = []
+            ship_date_idx = headers.get(normalize_header(SHIP_DATE))
+            if ship_date_idx is not None:
+                for row in rows[header_idx + 1 :]:
+                    if ship_date_idx < len(row):
+                        parsed = parse_date(row[ship_date_idx])
+                        if parsed:
+                            dates.append(parsed)
+            sheet_check["monthMatched"] = any(
+                date.year == target_date.year and date.month == target_date.month for date in dates
+            )
+            if not sheet_check["hasDateColumn"]:
+                sheet_check["message"] = "未识别到送货日期列"
+            elif not sheet_check["monthMatched"]:
+                sheet_check["message"] = "未发现统计月份内的送货日期"
+            else:
+                sheet_check["message"] = "检查通过"
+        except Exception as exc:
+            sheet_check["message"] = str(exc)
+        check["sheets"][sheet_name] = sheet_check
+
+    history_check = check["sheets"].get(HISTORY_SHEET, {})
+    detail_check = check["sheets"].get(DETAIL_SHEET, {})
+    check["hasHistorySheet"] = bool(history_check.get("hasSheet"))
+    check["hasDetailSheet"] = bool(detail_check.get("hasSheet"))
+    check["hasDateColumn"] = any(item.get("hasDateColumn") for item in check["sheets"].values())
+    check["monthMatched"] = any(item.get("monthMatched") for item in check["sheets"].values())
+
+    missing_sheets = [name for name, item in check["sheets"].items() if not item.get("hasSheet")]
+    readable_sheets = [item for item in check["sheets"].values() if item.get("hasSheet") and item.get("hasDateColumn")]
+    if not readable_sheets:
         check["status"] = "error"
-        check["messages"].append(str(exc))
+        check["messages"].append("未找到可读取的发货工作表，请确认包含“发货历史记录”或“发货明细”，且有“送货日期”列。")
+    elif missing_sheets:
+        check["status"] = "warning"
+        check["messages"].append(f"缺少工作表：{'、'.join(missing_sheets)}")
+    if not check["monthMatched"]:
+        if check["status"] != "error":
+            check["status"] = "warning"
+        check["messages"].append("未发现统计月份内的送货日期，请核对统计日期。")
     if not check["messages"]:
         check["messages"].append("文件结构检查通过")
     return check
@@ -177,6 +210,28 @@ def _build_import_checks(sources: list[str], target_date: dt.date) -> dict:
         "errorCount": error_count,
         "warningCount": warning_count,
         "files": files,
+    }
+
+
+def _build_import_summary(read_rows: int, inserted_rows: int, errors: list[dict] | None = None) -> dict:
+    errors = errors or []
+    read_rows = int(read_rows or 0)
+    inserted_rows = int(inserted_rows or 0)
+    skipped_rows = max(0, read_rows - inserted_rows)
+    parts = [
+        f"读取 {read_rows} 条",
+        f"新增 {inserted_rows} 条",
+        f"跳过重复 {skipped_rows} 条",
+    ]
+    if errors:
+        parts.append(f"错误 {len(errors)} 个文件")
+    return {
+        "readRows": read_rows,
+        "insertedRows": inserted_rows,
+        "skippedDuplicateRows": skipped_rows,
+        "errorRows": len(errors),
+        "errors": errors,
+        "message": "，".join(parts) + "。",
     }
 
 
@@ -711,11 +766,19 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
             if not paths:
                 raise ValueError("请至少上传一个 Excel 文件。")
             all_rows = []
+            import_errors = []
             for path in paths:
-                all_rows.extend(extract_all_shipments(path))
-            save_history_rows(HISTORY_DB, all_rows)
+                try:
+                    all_rows.extend(extract_all_shipments(path))
+                except Exception as exc:
+                    import_errors.append({"file": path.name, "error": str(exc)})
+            if not all_rows:
+                details = "；".join(f"{item['file']}：{item['error']}" for item in import_errors)
+                raise ValueError(f"没有读取到可导入的发货记录。{details}")
+            inserted_rows = save_history_rows(HISTORY_DB, all_rows)
             history_rows = load_history_rows(HISTORY_DB)
             payload = _build_payload_from_rows(history_rows, target_date, paths)
+            payload["importSummary"] = _build_import_summary(len(all_rows), inserted_rows, import_errors)
             self._send_json(payload)
         except Exception as exc:
             self._send_json({"error": str(exc)}, status=400)

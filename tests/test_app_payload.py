@@ -1,8 +1,16 @@
 import datetime as dt
 import unittest
 
-from app_server import build_dashboard_payload, configure_storage_root, is_write_allowed, save_export_file
-from summarize_shipments import SummaryResult
+from app_server import (
+    _build_import_checks,
+    _build_import_summary,
+    build_dashboard_payload,
+    configure_storage_root,
+    is_write_allowed,
+    save_export_file,
+)
+from summarize_shipments import DETAIL_SHEET, HISTORY_SHEET, SummaryResult, excel_serial
+from tests.test_summarize_shipments import _write_xlsx_named_sheets
 
 
 class DashboardPayloadTest(unittest.TestCase):
@@ -252,6 +260,43 @@ class DashboardPayloadTest(unittest.TestCase):
             self.assertEqual(app_server.REPORT_DIR.resolve(), (root / "reports").resolve())
             self.assertEqual(app_server.UPLOAD_DIR.resolve(), (root / "uploads").resolve())
             self.assertTrue(app_server.DATA_DIR.exists())
+
+    def test_import_checks_report_history_and_detail_sheets(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workbook = Path(tmp) / "demo.xlsx"
+            today = dt.date(2026, 6, 23)
+            header = ["客户简称", "内部编码", "型号", "规   格", "单位", "数量", "单价", "金额", "送货日期", "送货单\n号码", "订单号码", "备注"]
+            _write_xlsx_named_sheets(
+                workbook,
+                {
+                    HISTORY_SHEET: [header, ["历史客户", "H001", "型号H", "规格H", "卷", 1, 10, 10, excel_serial(today), "H1", "O1", ""]],
+                    DETAIL_SHEET: [header, ["今日客户", "D001", "型号D", "规格D", "卷", 2, 20, 40, excel_serial(today), "D1", "O2", ""]],
+                },
+            )
+
+            checks = _build_import_checks([str(workbook)], today)
+
+            self.assertEqual(checks["status"], "ready")
+            self.assertTrue(checks["files"][0]["sheets"][HISTORY_SHEET]["hasSheet"])
+            self.assertTrue(checks["files"][0]["sheets"][DETAIL_SHEET]["hasSheet"])
+            self.assertTrue(checks["files"][0]["sheets"][HISTORY_SHEET]["hasDateColumn"])
+            self.assertTrue(checks["files"][0]["sheets"][DETAIL_SHEET]["hasDateColumn"])
+
+    def test_import_summary_counts_inserted_duplicates_and_errors(self):
+        summary = _build_import_summary(
+            read_rows=10,
+            inserted_rows=7,
+            errors=[{"file": "bad.xlsx", "error": "缺少发货明细"}],
+        )
+
+        self.assertEqual(summary["readRows"], 10)
+        self.assertEqual(summary["insertedRows"], 7)
+        self.assertEqual(summary["skippedDuplicateRows"], 3)
+        self.assertEqual(summary["errorRows"], 1)
+        self.assertIn("读取 10 条", summary["message"])
 
 
 if __name__ == "__main__":
