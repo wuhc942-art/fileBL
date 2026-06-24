@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+import os
+import socket
+import sys
+import threading
+import time
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+
+APP_NAME = "\u53d1\u8d27\u770b\u677f"
+
+
+def app_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def find_available_port(preferred: int = 8765) -> int:
+    for port in [preferred, *range(8766, 8866)]:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def start_dashboard_server(port: int) -> ThreadingHTTPServer:
+    os.environ.setdefault("SHIPMENT_APP_ROOT", str(app_root()))
+    from app_server import DATA_DIR, REPORT_DIR, STATIC_DIR, UPLOAD_DIR, ShipmentDashboardHandler
+
+    STATIC_DIR.mkdir(exist_ok=True)
+    UPLOAD_DIR.mkdir(exist_ok=True)
+    REPORT_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(exist_ok=True)
+
+    server = ThreadingHTTPServer(("127.0.0.1", port), ShipmentDashboardHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
+
+
+def wait_for_server(port: int, timeout: float = 5.0) -> None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+                return
+        except OSError:
+            time.sleep(0.1)
+    raise RuntimeError(f"Dashboard server did not start on port {port}")
+
+
+def main() -> int:
+    port = find_available_port()
+    server = start_dashboard_server(port)
+    wait_for_server(port)
+    url = f"http://127.0.0.1:{port}/"
+
+    import webview
+
+    try:
+        webview.create_window(APP_NAME, url, width=1440, height=920, min_size=(1100, 720))
+        webview.start()
+    finally:
+        server.shutdown()
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

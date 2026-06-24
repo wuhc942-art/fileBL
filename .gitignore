@@ -5,6 +5,10 @@ logs/
 reports/
 uploads/
 outputs/
+build/
+dist/
+release/
+*.spec
 data/*.sqlite
 data/*.sqlite-*
 

@@ -6,6 +6,7 @@ import datetime as dt
 import json
 import mimetypes
 import os
+import sys
 import tempfile
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -29,7 +30,16 @@ from summarize_shipments import (
 )
 
 
-ROOT = Path(__file__).resolve().parent
+def _app_root() -> Path:
+    configured = os.environ.get("SHIPMENT_APP_ROOT")
+    if configured:
+        return Path(configured).resolve()
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+ROOT = _app_root()
 STATIC_DIR = ROOT / "web"
 UPLOAD_DIR = ROOT / "uploads"
 REPORT_DIR = ROOT / "reports"
