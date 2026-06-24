@@ -393,9 +393,20 @@ dashboard.example.com
 
 ## 当前风险和注意点
 
-- 现在还没有登录权限，外地访问前必须考虑安全。
-- 当前历史对比还不是全量历史，只是昨天/上周同日。
+- 现在已有只读模式和管理员 token 保护写接口，但正式外地访问仍建议叠加 Cloudflare Access。
+- 当前已有 SQLite 历史库；后续要继续做备份、角色权限和更完整的操作日志。
 - Cloudflare 账号不能让 Codex 擅自操作，除非用户明确要求并在浏览器里配合。
 - 当前服务是 Python 简单 HTTP 服务，够本地/小团队用；多人长期使用建议后续升级为 Flask/FastAPI + SQLite。
 - 上传 Excel 中可能有敏感客户/金额数据，公网发布前必须加访问控制。
 
+## 2026-06-24 进度更新
+
+- 已新增 `history_store.py`，本地历史库路径为 `data\history.sqlite`。
+- 本地管理员上传 Excel 后，会把同一批大表中的全量历史发货行写入 SQLite，并按历史库生成当日看板。
+- 已新增 `GET /api/history-summary?date=YYYY-MM-DD`，无需上传文件即可从历史库读取指定日期看板。
+- 已新增外地只读模式：
+  - `SHIPMENT_PUBLIC_READONLY=1`
+  - 或启动脚本参数 `-ReadOnly`
+- 只读模式下，上传和保存日报等写操作会被拒绝；如设置 `SHIPMENT_ADMIN_TOKEN`，写请求可通过 `X-Admin-Token` 或 `adminToken` 放行。
+- 前端打开页面、清空文件、切换日期时，会自动尝试读取历史库。
+- `start_dashboard.ps1` 和 `start_public_dashboard.ps1` 已支持 `-ReadOnly` 与 `-AdminToken`。

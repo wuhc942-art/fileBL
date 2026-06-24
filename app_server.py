@@ -5,12 +5,14 @@ import csv
 import datetime as dt
 import json
 import mimetypes
+import os
 import tempfile
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from history_store import load_history_rows, save_history_rows
 from summarize_shipments import (
     DETAIL_SHEET,
     SHIP_DATE,
@@ -31,6 +33,8 @@ ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "web"
 UPLOAD_DIR = ROOT / "uploads"
 REPORT_DIR = ROOT / "reports"
+DATA_DIR = ROOT / "data"
+HISTORY_DB = DATA_DIR / "history.sqlite"
 APP_CONFIG = load_config(ROOT / "shipment_config.json") if (ROOT / "shipment_config.json").exists() else {}
 configure_business_rules(APP_CONFIG)
 HIGH_VALUE_THRESHOLD = float(APP_CONFIG.get("high_value_threshold", 100000))
@@ -38,6 +42,35 @@ HIGH_VALUE_THRESHOLD = float(APP_CONFIG.get("high_value_threshold", 100000))
 
 def _round(value: float) -> float:
     return round(float(value or 0), 2)
+
+
+def readonly_mode() -> bool:
+    return os.environ.get("SHIPMENT_PUBLIC_READONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def admin_token() -> str:
+    return os.environ.get("SHIPMENT_ADMIN_TOKEN", "").strip()
+
+
+def is_write_allowed(readonly: bool, admin_token: str, headers: dict, query: dict) -> bool:
+    if not readonly:
+        return True
+    if not admin_token:
+        return False
+    header_token = ""
+    for key, value in headers.items():
+        if str(key).lower() == "x-admin-token":
+            header_token = str(value)
+            break
+    query_token = query.get("adminToken", [""])[0] if query else ""
+    return header_token == admin_token or query_token == admin_token
+
+
+def _build_payload_from_rows(rows: list[dict], target_date: dt.date, sources: list[Path | str]) -> dict:
+    result = summarize_rows(rows, target_date, sources)
+    reference_results = _build_reference_results(rows, target_date, sources)
+    history_context = _build_history_context(rows, target_date)
+    return build_dashboard_payload(result, reference_results, history_context)
 
 
 def _source_check(path: Path, target_date: dt.date) -> dict:
@@ -591,6 +624,8 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/history-summary":
+            return self._history_summary(parsed)
         if parsed.path in ("/", "/index.html"):
             return self._send_file(STATIC_DIR / "index.html", "text/html; charset=utf-8")
         if parsed.path == "/app.css":
@@ -601,11 +636,16 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        if not is_write_allowed(readonly_mode(), admin_token(), dict(self.headers.items()), query):
+            return self._send_json(
+                {"error": "Public read-only mode is enabled. Admin token is required for uploads or report saving."},
+                status=403,
+            )
         if parsed.path == "/api/save-report":
             return self._save_report_package()
         if parsed.path != "/api/summarize":
             return self.send_error(404, "Not found")
-        query = parse_qs(parsed.query)
         try:
             target_date = dt.date.fromisoformat(query.get("date", [dt.date.today().isoformat()])[0])
             paths = self._save_uploads()
@@ -614,10 +654,25 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
             all_rows = []
             for path in paths:
                 all_rows.extend(extract_all_shipments(path))
-            result = summarize_rows(all_rows, target_date, paths)
-            reference_results = _build_reference_results(all_rows, target_date, paths)
-            history_context = _build_history_context(all_rows, target_date)
-            payload = build_dashboard_payload(result, reference_results, history_context)
+            save_history_rows(HISTORY_DB, all_rows)
+            history_rows = load_history_rows(HISTORY_DB)
+            payload = _build_payload_from_rows(history_rows, target_date, paths)
+            self._send_json(payload)
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, status=400)
+
+    def _history_summary(self, parsed):
+        query = parse_qs(parsed.query)
+        try:
+            target_date = dt.date.fromisoformat(query.get("date", [dt.date.today().isoformat()])[0])
+            rows = load_history_rows(HISTORY_DB)
+            payload = _build_payload_from_rows(rows, target_date, [HISTORY_DB])
+            payload["history"] = {
+                "enabled": True,
+                "database": str(HISTORY_DB),
+                "rows": len(rows),
+                "readonly": readonly_mode(),
+            }
             self._send_json(payload)
         except Exception as exc:
             self._send_json({"error": str(exc)}, status=400)
@@ -702,6 +757,7 @@ def main() -> int:
     STATIC_DIR.mkdir(exist_ok=True)
     UPLOAD_DIR.mkdir(exist_ok=True)
     REPORT_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(exist_ok=True)
     server = ThreadingHTTPServer((args.host, args.port), ShipmentDashboardHandler)
     url = f"http://{args.host}:{args.port}/"
     print(f"Shipment dashboard running at {url}")

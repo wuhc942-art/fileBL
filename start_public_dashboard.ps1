@@ -1,13 +1,21 @@
 param(
     [string]$TunnelName = "fahuo-dashboard",
     [string]$TunnelToken = "",
-    [int]$Port = 8765
+    [int]$Port = 8765,
+    [switch]$ReadOnly,
+    [string]$AdminToken = ""
 )
 
 $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptRoot
 $env:PYTHONUTF8 = "1"
+if ($ReadOnly) {
+    $env:SHIPMENT_PUBLIC_READONLY = "1"
+}
+if ($AdminToken) {
+    $env:SHIPMENT_ADMIN_TOKEN = $AdminToken
+}
 
 if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
     throw "cloudflared is not installed or not in PATH. Install it from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/ first."

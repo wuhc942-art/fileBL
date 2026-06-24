@@ -41,17 +41,32 @@ Create the tunnel and route a hostname in Cloudflare first. Then run:
 .\start_public_dashboard.ps1 -TunnelName fahuo-dashboard
 ```
 
+For outside sharing, prefer read-only mode:
+
+```powershell
+.\start_public_dashboard.ps1 -TunnelName fahuo-dashboard -ReadOnly
+```
+
 If Cloudflare provides a tunnel token, run:
 
 ```powershell
 .\start_public_dashboard.ps1 -TunnelToken "PASTE_TOKEN_HERE"
 ```
 
+If an administrator must upload Excel through the public tunnel, set an admin token and send it as `X-Admin-Token` or `adminToken` on write requests:
+
+```powershell
+.\start_public_dashboard.ps1 -TunnelName fahuo-dashboard -ReadOnly -AdminToken "CHANGE_THIS_TOKEN"
+```
+
+The normal browser UI is intended for local uploads first. Outside users should view the historical dashboard from `data\history.sqlite`.
+
 ## Security Checklist
 
 - Turn on Cloudflare Access.
 - Allow only approved email addresses.
 - Do not publish the upload page without access control.
+- Use `-ReadOnly` for outside access unless remote uploading is explicitly needed.
 - Do not commit tunnel tokens, uploaded Excel files, reports, or logs to GitHub.
 - Prefer read-only sharing for outside users until account roles are implemented.
 
@@ -70,3 +85,5 @@ If a future SQLite history database is added, also back up:
 ```text
 data\history.sqlite
 ```
+
+The dashboard now uses this SQLite history database after local uploads. Back it up together with reports and config.

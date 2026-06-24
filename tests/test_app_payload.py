@@ -1,7 +1,7 @@
 import datetime as dt
 import unittest
 
-from app_server import build_dashboard_payload
+from app_server import build_dashboard_payload, is_write_allowed
 from summarize_shipments import SummaryResult
 
 
@@ -221,6 +221,12 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(payload["businessAlerts"]["silentCustomers"], ["沉默客户"])
         self.assertEqual(payload["businessAlerts"]["returningCustomers"], ["回流客户"])
         self.assertEqual(payload["businessAlerts"]["atRiskCustomers"], ["沉默客户"])
+
+    def test_write_access_requires_admin_token_in_readonly_mode(self):
+        self.assertTrue(is_write_allowed(readonly=False, admin_token="", headers={}, query={}))
+        self.assertFalse(is_write_allowed(readonly=True, admin_token="secret", headers={}, query={}))
+        self.assertTrue(is_write_allowed(readonly=True, admin_token="secret", headers={"X-Admin-Token": "secret"}, query={}))
+        self.assertTrue(is_write_allowed(readonly=True, admin_token="secret", headers={}, query={"adminToken": ["secret"]}))
 
 
 if __name__ == "__main__":

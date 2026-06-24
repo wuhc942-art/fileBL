@@ -131,6 +131,29 @@ async function summarize() {
     currentPayload = null;
     els.results.hidden = true;
     setStatus("error", "分析失败", error.message);
+    if (error.message.includes("read-only") || error.message.includes("只读")) {
+      loadHistorySummary();
+    }
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function loadHistorySummary() {
+  setStatus("loading", "正在读取历史库", "正在从本机历史库生成看板。");
+  setBusy(true);
+  try {
+    const response = await fetch(`/api/history-summary?date=${encodeURIComponent(els.dateInput.value)}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "读取历史库失败。");
+    currentPayload = payload;
+    render(payload);
+    const totalRows = payload.history?.rows || 0;
+    setStatus("ready", "已读取历史库", `历史库共 ${formatNumber(totalRows)} 条记录，当前日期 ${formatNumber(payload.kpis.rows)} 条。`);
+  } catch (error) {
+    currentPayload = null;
+    els.results.hidden = true;
+    setStatus("empty", "等待文件", "还没有可用历史数据。请在本地管理员模式下先上传 Excel。");
   } finally {
     setBusy(false);
   }
@@ -574,10 +597,14 @@ els.clearBtn.addEventListener("click", () => {
   els.fileInput.value = "";
   els.results.hidden = true;
   updateFileList();
-  setStatus("empty", "等待文件", "把 .xlsx 文件拖进来，或点击“选择文件”。");
+  loadHistorySummary();
 });
 els.dateInput.addEventListener("change", () => {
-  if (selectedFiles.length) summarize();
+  if (selectedFiles.length) {
+    summarize();
+  } else {
+    loadHistorySummary();
+  }
 });
 
 ["dragenter", "dragover"].forEach((eventName) => {
@@ -829,3 +856,4 @@ function escapeSvg(value) {
 }
 
 updateSortButtons();
+loadHistorySummary();
