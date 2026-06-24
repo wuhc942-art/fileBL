@@ -4,6 +4,7 @@ import unittest
 from app_server import (
     _build_import_checks,
     _build_import_summary,
+    _build_payload_from_rows,
     build_dashboard_payload,
     configure_storage_root,
     is_write_allowed,
@@ -184,6 +185,93 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(payload["businessAlerts"]["highValueCustomers"][0]["customer"], "大客户A")
         self.assertIn("新客户B", payload["businessAlerts"]["newCustomers"])
         self.assertIn("老客户C", payload["businessAlerts"]["silentCustomers"])
+
+    def test_comparisons_include_recent_average_when_prior_days_have_data(self):
+        today_date = dt.date(2026, 6, 23)
+        current = self._result(
+            today_date,
+            [
+                {
+                    "来源文件": "today.xlsx",
+                    "客户": "客户A",
+                    "型号/品名": "型号A",
+                    "规格": "",
+                    "单位": "卷",
+                    "数量": 10.0,
+                    "单价": 100.0,
+                    "金额": 1000.0,
+                    "送货单号": "D1",
+                    "订单号": "O1",
+                }
+            ],
+        )
+        last_7_average = SummaryResult(
+            date=today_date - dt.timedelta(days=7),
+            sources=["history.sqlite"],
+            rows=[],
+            by_customer=[],
+            total_rows=3 / 7,
+            total_amount=700 / 7,
+            total_quantity=14 / 7,
+            customer_count=2 / 7,
+        )
+
+        payload = build_dashboard_payload(current, {"last7Average": last_7_average})
+
+        self.assertTrue(payload["comparisons"]["last7Average"]["amount"]["hasBaseline"])
+        self.assertEqual(payload["comparisons"]["last7Average"]["amount"]["baseline"], 100.0)
+        self.assertEqual(payload["comparisons"]["last7Average"]["amount"]["delta"], 900.0)
+
+    def test_payload_from_history_rows_builds_recent_average_comparisons(self):
+        today_date = dt.date(2026, 6, 23)
+        rows = [
+            {
+                "送货日期": today_date,
+                "来源文件": "history.xlsx",
+                "客户": "客户A",
+                "型号/品名": "型号A",
+                "规格": "",
+                "单位": "卷",
+                "数量": 10.0,
+                "单价": 100.0,
+                "金额": 1000.0,
+                "送货单号": "D1",
+                "订单号": "O1",
+            },
+            {
+                "送货日期": today_date - dt.timedelta(days=1),
+                "来源文件": "history.xlsx",
+                "客户": "客户B",
+                "型号/品名": "型号B",
+                "规格": "",
+                "单位": "卷",
+                "数量": 4.0,
+                "单价": 100.0,
+                "金额": 400.0,
+                "送货单号": "D2",
+                "订单号": "O2",
+            },
+            {
+                "送货日期": today_date - dt.timedelta(days=7),
+                "来源文件": "history.xlsx",
+                "客户": "客户C",
+                "型号/品名": "型号C",
+                "规格": "",
+                "单位": "卷",
+                "数量": 3.0,
+                "单价": 100.0,
+                "金额": 300.0,
+                "送货单号": "D3",
+                "订单号": "O3",
+            },
+        ]
+
+        payload = _build_payload_from_rows(rows, today_date, ["history.sqlite"])
+
+        self.assertTrue(payload["comparisons"]["last7Average"]["amount"]["hasBaseline"])
+        self.assertEqual(payload["comparisons"]["last7Average"]["amount"]["baseline"], 100.0)
+        self.assertTrue(payload["comparisons"]["last30Average"]["amount"]["hasBaseline"])
+        self.assertEqual(payload["comparisons"]["last30Average"]["amount"]["baseline"], 23.33)
 
 
     def test_business_alerts_use_full_history_context_when_available(self):

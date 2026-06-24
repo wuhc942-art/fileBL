@@ -311,7 +311,7 @@ function renderComparisons(comparisons) {
 }
 
 function renderComparisonMetric(label, metric, formatter) {
-  if (!metric || !metric.hasBaseline) {
+  if (!metric) {
     return `
       <div class="comparison-line muted-line">
         <span>${label}</span>
@@ -319,10 +319,13 @@ function renderComparisonMetric(label, metric, formatter) {
       </div>
     `;
   }
-  const delta = Number(metric.delta || 0);
+  const hasBaseline = Boolean(metric.hasBaseline);
+  const delta = hasBaseline ? Number(metric.delta || 0) : Number(metric.current || 0);
   const tone = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
   const sign = delta > 0 ? "+" : "";
-  const percent = metric.percent === null || metric.percent === undefined ? "" : ` (${sign}${formatNumber(metric.percent)}%)`;
+  const percent = hasBaseline && metric.percent !== null && metric.percent !== undefined
+    ? ` (${sign}${formatNumber(metric.percent)}%)`
+    : "";
   return `
     <div class="comparison-line ${tone}">
       <span>${label}</span>
