@@ -1,7 +1,7 @@
 import datetime as dt
 import unittest
 
-from app_server import build_dashboard_payload, is_write_allowed, save_export_file
+from app_server import build_dashboard_payload, configure_storage_root, is_write_allowed, save_export_file
 from summarize_shipments import SummaryResult
 
 
@@ -238,6 +238,20 @@ class DashboardPayloadTest(unittest.TestCase):
             self.assertTrue(Path(result["path"]).exists())
             self.assertEqual(Path(result["path"]).parent.name, "exports")
             self.assertEqual(Path(result["path"]).read_text(encoding="utf-8-sig"), "a,b\n1,2")
+
+    def test_configure_storage_root_moves_runtime_directories(self):
+        import tempfile
+        import app_server
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            configure_storage_root(root)
+
+            self.assertEqual(app_server.DATA_DIR.resolve(), (root / "data").resolve())
+            self.assertEqual(app_server.REPORT_DIR.resolve(), (root / "reports").resolve())
+            self.assertEqual(app_server.UPLOAD_DIR.resolve(), (root / "uploads").resolve())
+            self.assertTrue(app_server.DATA_DIR.exists())
 
 
 if __name__ == "__main__":

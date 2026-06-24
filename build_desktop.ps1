@@ -32,6 +32,9 @@ Copy-Item -LiteralPath (Join-Path $distDir $AppName) -Destination $releaseDir -R
 Copy-Item -LiteralPath (Join-Path $scriptRoot "web") -Destination (Join-Path $releaseDir "web") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $scriptRoot "shipment_config.json") -Destination (Join-Path $releaseDir "shipment_config.json") -Force
 Copy-Item -LiteralPath (Join-Path $scriptRoot "assets\app_icon.ico") -Destination (Join-Path $releaseDir "app_icon.ico") -Force
+if (-not (Test-Path (Join-Path $releaseDir "app_settings.json"))) {
+    Set-Content -LiteralPath (Join-Path $releaseDir "app_settings.json") -Value "{}" -Encoding UTF8
+}
 
 New-Item -ItemType Directory -Force -Path (Join-Path $releaseDir "data") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $releaseDir "uploads") | Out-Null
@@ -49,9 +52,12 @@ $readme = @(
     "- data\history.sqlite: history database",
     "- uploads\: upload cache",
     "- reports\: report packages",
-    "- shipment_config.json: business rules",
-    "",
-    "Copy the whole folder to another computer."
+"- shipment_config.json: business rules",
+"- app_settings.json: desktop settings",
+"",
+"Use the Data Folder button in the app to choose where local data is stored.",
+"Exports can be saved to any path through the Save As dialog.",
+"Copy the whole folder to another computer."
 ) -join [Environment]::NewLine
 
 Set-Content -LiteralPath (Join-Path $releaseDir "README.txt") -Value $readme -Encoding UTF8

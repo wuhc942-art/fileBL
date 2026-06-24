@@ -32,9 +32,12 @@ uploads\
 reports\
 reports\exports\
 shipment_config.json
+app_settings.json
 ```
 
-导出的 CSV、JSON、PNG 会保存到：
+点击页面右上方的“数据目录”按钮，可以选择历史库、上传缓存、日报包保存在哪个本地目录。
+
+导出 CSV、JSON、PNG 时会弹出“另存为”窗口，可以选择保存路径。浏览器模式下会保存到：
 
 ```text
 reports\exports\

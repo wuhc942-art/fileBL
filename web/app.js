@@ -41,6 +41,7 @@ const els = {
   drawerHead: document.querySelector("#drawerHead"),
   drawerRows: document.querySelector("#drawerRows"),
   drawerCloseBtn: document.querySelector("#drawerCloseBtn"),
+  dataDirBtn: document.querySelector("#dataDirBtn"),
   downloadPngBtn: document.querySelector("#downloadPngBtn"),
   saveReportBtn: document.querySelector("#saveReportBtn"),
   downloadCsvBtn: document.querySelector("#downloadCsvBtn"),
@@ -587,6 +588,15 @@ function download(filename, content, type) {
 }
 
 async function saveExportFile(filename, content, encoding = "text") {
+  if (window.pywebview?.api?.save_export_file) {
+    const result = await window.pywebview.api.save_export_file(filename, content, encoding);
+    if (result?.cancelled) {
+      setStatus("ready", "已取消导出", "没有保存文件。");
+      return;
+    }
+    setStatus("ready", "导出已保存", result.path);
+    return;
+  }
   const response = await fetch("/api/export-file", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -595,6 +605,27 @@ async function saveExportFile(filename, content, encoding = "text") {
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "导出失败");
   setStatus("ready", "导出已保存", result.path);
+}
+
+async function chooseDataDirectory() {
+  if (!window.pywebview?.api?.choose_data_directory) {
+    setStatus("ready", "数据目录", "浏览器模式下数据保存在软件目录。");
+    return;
+  }
+  try {
+    const result = await window.pywebview.api.choose_data_directory();
+    if (result?.cancelled) {
+      setStatus("ready", "已取消", "数据目录没有改变。");
+      return;
+    }
+    setStatus("ready", "数据目录已切换", result.storageRoot || result.dataDir);
+    selectedFiles = [];
+    els.fileInput.value = "";
+    updateFileList();
+    loadHistorySummary();
+  } catch (error) {
+    setStatus("error", "切换数据目录失败", error.message);
+  }
 }
 
 els.dateInput.value = todayIso();
@@ -641,6 +672,10 @@ els.dropZone.addEventListener("keydown", (event) => {
     event.preventDefault();
     els.fileInput.click();
   }
+});
+
+els.dataDirBtn.addEventListener("click", () => {
+  chooseDataDirectory();
 });
 
 els.downloadCsvBtn.addEventListener("click", () => {

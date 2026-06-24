@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import mimetypes
 import os
+import shutil
 import sys
 import tempfile
 import webbrowser
@@ -42,9 +43,10 @@ def _app_root() -> Path:
 
 ROOT = _app_root()
 STATIC_DIR = ROOT / "web"
-UPLOAD_DIR = ROOT / "uploads"
-REPORT_DIR = ROOT / "reports"
-DATA_DIR = ROOT / "data"
+STORAGE_ROOT = Path(os.environ.get("SHIPMENT_DATA_ROOT") or ROOT).resolve()
+UPLOAD_DIR = STORAGE_ROOT / "uploads"
+REPORT_DIR = STORAGE_ROOT / "reports"
+DATA_DIR = STORAGE_ROOT / "data"
 HISTORY_DB = DATA_DIR / "history.sqlite"
 APP_CONFIG = load_config(ROOT / "shipment_config.json") if (ROOT / "shipment_config.json").exists() else {}
 configure_business_rules(APP_CONFIG)
@@ -53,6 +55,34 @@ HIGH_VALUE_THRESHOLD = float(APP_CONFIG.get("high_value_threshold", 100000))
 
 def _round(value: float) -> float:
     return round(float(value or 0), 2)
+
+
+def configure_storage_root(storage_root: Path | str, migrate_from: Path | None = None) -> dict:
+    global STORAGE_ROOT, UPLOAD_DIR, REPORT_DIR, DATA_DIR, HISTORY_DB
+    new_root = Path(storage_root).resolve()
+    old_history = HISTORY_DB
+    if migrate_from is not None:
+        old_history = Path(migrate_from).resolve() / "data" / "history.sqlite"
+
+    STORAGE_ROOT = new_root
+    UPLOAD_DIR = STORAGE_ROOT / "uploads"
+    REPORT_DIR = STORAGE_ROOT / "reports"
+    DATA_DIR = STORAGE_ROOT / "data"
+    HISTORY_DB = DATA_DIR / "history.sqlite"
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if old_history.exists() and old_history.resolve() != HISTORY_DB.resolve() and not HISTORY_DB.exists():
+        shutil.copy2(old_history, HISTORY_DB)
+
+    return {
+        "storageRoot": str(STORAGE_ROOT),
+        "dataDir": str(DATA_DIR),
+        "reportDir": str(REPORT_DIR),
+        "uploadDir": str(UPLOAD_DIR),
+        "historyDb": str(HISTORY_DB),
+    }
 
 
 def readonly_mode() -> bool:
