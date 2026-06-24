@@ -13,11 +13,26 @@
         <p class="label">本地 Excel 发货分析</p>
         <h1>每日发货看板</h1>
       </div>
-      <div class="date-control">
-        <label for="dateInput">统计日期</label>
-        <input id="dateInput" type="date">
+      <div class="top-actions">
+        <div class="date-control">
+          <label for="dateInput">统计日期</label>
+          <input id="dateInput" type="date">
+        </div>
+        <div class="data-tools">
+          <div id="currentDataDir" class="data-dir-chip" title="当前数据保存位置">数据目录：正在读取...</div>
+          <div class="drop-actions">
+            <button id="dataDirBtn" class="button secondary" type="button">数据目录</button>
+            <button id="backupBtn" class="button secondary" type="button">备份</button>
+            <button id="restoreBtn" class="button secondary" type="button">恢复</button>
+          </div>
+        </div>
       </div>
     </header>
+
+    <section id="welcomePanel" class="welcome-panel">
+      <strong>首次使用</strong>
+      <span>先选择数据目录，再导入 Excel。导入后历史数据会保存在本机，之后打开软件会自动读取。</span>
+    </section>
 
     <section class="drop-section" aria-labelledby="dropTitle">
       <div id="dropZone" class="drop-zone" tabindex="0">
@@ -55,7 +70,6 @@
           <h2 id="resultTitle">发货汇总</h2>
         </div>
         <div class="actions">
-          <button id="dataDirBtn" class="button secondary" type="button">数据目录</button>
           <button id="downloadPngBtn" class="button primary" type="button">导出图片日报</button>
           <button id="saveReportBtn" class="button secondary" type="button">保存日报包</button>
           <button id="downloadCsvBtn" class="button secondary" type="button">导出 CSV</button>

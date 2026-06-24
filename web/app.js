@@ -52,6 +52,10 @@ const els = {
   importCheckList: document.querySelector("#importCheckList"),
   anomalyReviewList: document.querySelector("#anomalyReviewList"),
   ruleSummary: document.querySelector("#ruleSummary"),
+  currentDataDir: document.querySelector("#currentDataDir"),
+  welcomePanel: document.querySelector("#welcomePanel"),
+  backupBtn: document.querySelector("#backupBtn"),
+  restoreBtn: document.querySelector("#restoreBtn"),
 };
 
 let selectedFiles = [];
@@ -93,6 +97,7 @@ function escapeHtml(value) {
 
 function updateFileList() {
   els.fileCount.textContent = selectedFiles.length;
+  updateWelcomeVisibility(Boolean(currentPayload) || selectedFiles.length > 0);
   if (!selectedFiles.length) {
     els.fileList.innerHTML = `<li class="muted">还没有选择文件</li>`;
     return;
@@ -126,10 +131,12 @@ async function summarize() {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "分析失败。");
     currentPayload = payload;
+    updateWelcomeVisibility(true);
     render(payload);
     setStatus("ready", "已生成", `找到 ${payload.kpis.rows} 笔发货记录，金额 ${formatMoney(payload.kpis.amount)}。`);
   } catch (error) {
     currentPayload = null;
+    updateWelcomeVisibility(false);
     els.results.hidden = true;
     setStatus("error", "分析失败", error.message);
     if (error.message.includes("read-only") || error.message.includes("只读")) {
@@ -150,9 +157,11 @@ async function loadHistorySummary() {
     currentPayload = payload;
     render(payload);
     const totalRows = payload.history?.rows || 0;
+    updateWelcomeVisibility(totalRows > 0);
     setStatus("ready", "已读取历史库", `历史库共 ${formatNumber(totalRows)} 条记录，当前日期 ${formatNumber(payload.kpis.rows)} 条。`);
   } catch (error) {
     currentPayload = null;
+    updateWelcomeVisibility(false);
     els.results.hidden = true;
     setStatus("empty", "等待文件", "还没有可用历史数据。请在本地管理员模式下先上传 Excel。");
   } finally {
@@ -164,6 +173,14 @@ function setBusy(isBusy) {
   els.chooseBtn.disabled = isBusy;
   els.clearBtn.disabled = isBusy;
   els.dateInput.disabled = isBusy;
+  els.dataDirBtn.disabled = isBusy;
+  els.backupBtn.disabled = isBusy;
+  els.restoreBtn.disabled = isBusy;
+}
+
+function updateWelcomeVisibility(hasData) {
+  if (!els.welcomePanel) return;
+  els.welcomePanel.hidden = Boolean(hasData);
 }
 
 function render(payload) {
@@ -619,12 +636,66 @@ async function chooseDataDirectory() {
       return;
     }
     setStatus("ready", "数据目录已切换", result.storageRoot || result.dataDir);
+    await refreshSettings();
     selectedFiles = [];
     els.fileInput.value = "";
     updateFileList();
     loadHistorySummary();
   } catch (error) {
     setStatus("error", "切换数据目录失败", error.message);
+  }
+}
+
+async function refreshSettings() {
+  if (!window.pywebview?.api?.get_settings) {
+    els.currentDataDir.textContent = "数据目录：浏览器模式下保存在软件目录";
+    return;
+  }
+  try {
+    const settings = await window.pywebview.api.get_settings();
+    const dataDir = settings?.dataDir || "";
+    els.currentDataDir.textContent = `数据目录：${dataDir}`;
+    els.currentDataDir.title = dataDir || "当前数据保存位置";
+  } catch (error) {
+    els.currentDataDir.textContent = "数据目录：读取失败";
+    els.currentDataDir.title = error.message;
+  }
+}
+
+async function createBackup() {
+  if (!window.pywebview?.api?.create_backup_file) {
+    setStatus("ready", "备份仅桌面版可用", "请在桌面 App 中使用备份功能。");
+    return;
+  }
+  try {
+    const result = await window.pywebview.api.create_backup_file();
+    if (result?.cancelled) {
+      setStatus("ready", "已取消备份", "没有保存备份文件。");
+      return;
+    }
+    setStatus("ready", "备份已保存", result.path);
+  } catch (error) {
+    setStatus("error", "备份失败", error.message);
+  }
+}
+
+async function restoreBackup() {
+  if (!window.pywebview?.api?.restore_backup_file) {
+    setStatus("ready", "恢复仅桌面版可用", "请在桌面 App 中使用恢复功能。");
+    return;
+  }
+  if (!confirm("恢复会覆盖当前数据目录里的历史数据库，确定继续吗？")) return;
+  try {
+    const result = await window.pywebview.api.restore_backup_file();
+    if (result?.cancelled) {
+      setStatus("ready", "已取消恢复", "历史数据没有改变。");
+      return;
+    }
+    setStatus("ready", "恢复完成", result.historyDb);
+    await refreshSettings();
+    loadHistorySummary();
+  } catch (error) {
+    setStatus("error", "恢复失败", error.message);
   }
 }
 
@@ -676,6 +747,14 @@ els.dropZone.addEventListener("keydown", (event) => {
 
 els.dataDirBtn.addEventListener("click", () => {
   chooseDataDirectory();
+});
+
+els.backupBtn.addEventListener("click", () => {
+  createBackup();
+});
+
+els.restoreBtn.addEventListener("click", () => {
+  restoreBackup();
 });
 
 els.downloadCsvBtn.addEventListener("click", () => {
@@ -907,4 +986,5 @@ function escapeSvg(value) {
 }
 
 updateSortButtons();
+refreshSettings();
 loadHistorySummary();

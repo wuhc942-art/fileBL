@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import os
 import base64
+import datetime as dt
+import json
 import socket
 import sys
 import threading
 import time
+import zipfile
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -35,6 +38,42 @@ def find_available_port(preferred: int = 8765) -> int:
         return int(sock.getsockname()[1])
 
 
+def create_data_backup(root: Path, storage_root: Path, target: Path) -> dict:
+    root = Path(root).resolve()
+    storage_root = Path(storage_root).resolve()
+    target = Path(target).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    history_db = storage_root / "data" / "history.sqlite"
+    metadata = {
+        "app": "shipment-dashboard",
+        "createdAt": dt.datetime.now().isoformat(timespec="seconds"),
+        "storageRoot": str(storage_root),
+        "hasHistory": history_db.exists(),
+    }
+    with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("backup-info.json", json.dumps(metadata, ensure_ascii=False, indent=2))
+        if history_db.exists():
+            archive.write(history_db, "data/history.sqlite")
+        settings_file = root / "app_settings.json"
+        if settings_file.exists():
+            archive.write(settings_file, "app_settings.json")
+    return {"cancelled": False, "path": str(target), "directory": str(target.parent), "filename": target.name}
+
+
+def restore_data_backup(backup_path: Path, storage_root: Path) -> dict:
+    backup_path = Path(backup_path).resolve()
+    storage_root = Path(storage_root).resolve()
+    history_db = storage_root / "data" / "history.sqlite"
+    with zipfile.ZipFile(backup_path) as archive:
+        names = set(archive.namelist())
+        if "data/history.sqlite" not in names:
+            raise ValueError("备份包里没有历史数据库 data/history.sqlite")
+        history_db.parent.mkdir(parents=True, exist_ok=True)
+        with archive.open("data/history.sqlite") as source, history_db.open("wb") as target:
+            target.write(source.read())
+    return {"cancelled": False, "path": str(backup_path), "historyDb": str(history_db)}
+
+
 def start_dashboard_server(port: int) -> ThreadingHTTPServer:
     root = app_root()
     settings = load_settings(root)
@@ -60,7 +99,14 @@ class DesktopApi:
 
     def get_settings(self) -> dict:
         settings = load_settings(self.root)
-        return {"dataDir": settings.get("dataDir") or str(self.root)}
+        from app_server import DATA_DIR, HISTORY_DB, REPORT_DIR, STORAGE_ROOT
+
+        return {
+            "dataDir": str(STORAGE_ROOT),
+            "historyDb": str(HISTORY_DB),
+            "reportDir": str(REPORT_DIR),
+            "hasHistory": HISTORY_DB.exists(),
+        }
 
     def choose_data_directory(self) -> dict:
         import webview
@@ -97,6 +143,33 @@ class DesktopApi:
         else:
             target.write_text(content, encoding="utf-8-sig")
         return {"cancelled": False, "path": str(target), "directory": str(target.parent), "filename": target.name}
+
+    def create_backup_file(self) -> dict:
+        import webview
+        from app_server import REPORT_DIR, STORAGE_ROOT
+
+        default_dir = REPORT_DIR / "backups"
+        default_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"发货看板备份-{dt.datetime.now():%Y%m%d-%H%M%S}.zip"
+        selected = webview.windows[0].create_file_dialog(
+            webview.SAVE_DIALOG,
+            directory=str(default_dir),
+            save_filename=filename,
+        )
+        if not selected:
+            return {"cancelled": True}
+        return create_data_backup(self.root, STORAGE_ROOT, Path(selected[0]))
+
+    def restore_backup_file(self) -> dict:
+        import webview
+        from app_server import STORAGE_ROOT, configure_storage_root
+
+        selected = webview.windows[0].create_file_dialog(webview.OPEN_DIALOG, directory=str(STORAGE_ROOT))
+        if not selected:
+            return {"cancelled": True}
+        result = restore_data_backup(Path(selected[0]), STORAGE_ROOT)
+        configure_storage_root(STORAGE_ROOT)
+        return result
 
 
 def wait_for_server(port: int, timeout: float = 5.0) -> None:
