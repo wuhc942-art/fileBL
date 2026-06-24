@@ -68,6 +68,12 @@ h1 {
   line-height: 1.2;
 }
 
+.app-version {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 h2 {
   margin-bottom: 6px;
   font-size: 20px;

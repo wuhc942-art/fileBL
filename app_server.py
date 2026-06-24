@@ -53,6 +53,7 @@ HISTORY_DB = DATA_DIR / "history.sqlite"
 APP_CONFIG = load_config(ROOT / "shipment_config.json") if (ROOT / "shipment_config.json").exists() else {}
 configure_business_rules(APP_CONFIG)
 HIGH_VALUE_THRESHOLD = float(APP_CONFIG.get("high_value_threshold", 100000))
+APP_VERSION = "v1.0.4"
 
 
 def _round(value: float) -> float:
@@ -381,7 +382,7 @@ def _compare_value(current: float, baseline: float) -> dict:
         "baseline": baseline,
         "delta": delta,
         "percent": _round(delta / baseline * 100) if baseline else None,
-        "hasBaseline": baseline != 0,
+        "hasBaseline": True,
     }
 
 
@@ -702,6 +703,7 @@ def build_dashboard_payload(
     ]
 
     return {
+        "appVersion": APP_VERSION,
         "date": result.date.isoformat(),
         "sources": [Path(source).name for source in result.sources],
         "fileCheck": file_check,

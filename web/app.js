@@ -57,6 +57,7 @@ const els = {
   welcomePanel: document.querySelector("#welcomePanel"),
   backupBtn: document.querySelector("#backupBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
+  appVersion: document.querySelector("#appVersion"),
 };
 
 let selectedFiles = [];
@@ -187,6 +188,9 @@ function updateWelcomeVisibility(hasData) {
 
 function render(payload) {
   els.results.hidden = false;
+  if (payload.appVersion && els.appVersion) {
+    els.appVersion.textContent = payload.appVersion;
+  }
   els.resultTitle.textContent = `${payload.date} 发货汇总`;
   els.kpiRows.textContent = formatNumber(payload.kpis.rows);
   els.kpiCustomers.textContent = formatNumber(payload.kpis.customers);
