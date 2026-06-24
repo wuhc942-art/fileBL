@@ -79,6 +79,56 @@ def _write_xlsx(path: Path, rows):
         z.writestr("xl/worksheets/sheet1.xml", _sheet_xml(rows))
 
 
+def _write_xlsx_named_sheets(path: Path, sheets: dict[str, list[list]]):
+    sheet_items = list(sheets.items())
+    overrides = "".join(
+        f'<Override PartName="/xl/worksheets/sheet{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        for i in range(1, len(sheet_items) + 1)
+    )
+    sheet_nodes = "".join(
+        f'<sheet name="{name}" sheetId="{i}" r:id="rId{i}"/>'
+        for i, (name, _) in enumerate(sheet_items, 1)
+    )
+    rel_nodes = "".join(
+        f'<Relationship Id="rId{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{i}.xml"/>'
+        for i in range(1, len(sheet_items) + 1)
+    )
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr(
+            "[Content_Types].xml",
+            f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+{overrides}
+</Types>""",
+        )
+        z.writestr(
+            "_rels/.rels",
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>""",
+        )
+        z.writestr(
+            "xl/workbook.xml",
+            f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets>{sheet_nodes}</sheets>
+</workbook>""",
+        )
+        z.writestr(
+            "xl/_rels/workbook.xml.rels",
+            f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+{rel_nodes}
+</Relationships>""",
+        )
+        for i, (_, rows) in enumerate(sheet_items, 1):
+            z.writestr(f"xl/worksheets/sheet{i}.xml", _sheet_xml(rows))
+
+
 class SummarizeShipmentsTest(unittest.TestCase):
     def test_summarize_sources_filters_today_and_totals(self):
         import tempfile
@@ -133,6 +183,42 @@ class SummarizeShipmentsTest(unittest.TestCase):
             self.assertEqual({row["送货日期"] for row in rows}, {today, today - dt.timedelta(days=8)})
             self.assertEqual(result.total_rows, 1)
             self.assertEqual(result.total_amount, 20)
+
+    def test_extract_all_shipments_reads_history_record_sheet_and_deduplicates(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workbook = Path(tmp) / "history-sheet.xlsx"
+            today = dt.date(2026, 6, 23)
+            older = today - dt.timedelta(days=30)
+            header = ["客户简称", "送货单\n号码", "订单号码", "内部编码", "型号", "规   格", "单位", "数量", "单价", "金额", "送货日期", "备注"]
+            duplicate = ["客户A", "D1", "O1", "A001", "型号A", "规格A", "卷", 2, 10, 20, excel_serial(today), "重复"]
+            _write_xlsx_named_sheets(
+                workbook,
+                {
+                    "发货历史记录": [
+                        header,
+                        ["客户历史", "D0", "O0", "H001", "型号H", "规格H", "卷", 3, 20, 60, excel_serial(older), "历史"],
+                        duplicate,
+                    ],
+                    "发货明细": [
+                        ["6月份"],
+                        [""],
+                        header,
+                        duplicate,
+                    ],
+                },
+            )
+
+            rows = extract_all_shipments(workbook)
+            today_result = summarize_sources([workbook], today)
+            older_result = summarize_sources([workbook], older)
+
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(today_result.total_rows, 1)
+            self.assertEqual(today_result.total_amount, 20)
+            self.assertEqual(older_result.total_rows, 1)
+            self.assertEqual(older_result.rows[0]["客户"], "客户历史")
 
     def test_pure_adhesive_film_uses_spec_as_product_name(self):
         import tempfile

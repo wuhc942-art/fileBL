@@ -5,21 +5,21 @@
 在项目目录运行：
 
 ```powershell
-.\build_desktop.ps1
+powershell -ExecutionPolicy Bypass -File .\build_desktop.ps1
 ```
 
 输出目录：
 
 ```text
-release\发货看板\
+release\fa-huo-dashboard\
 ```
 
 ## 使用
 
-把整个 `release\发货看板\` 文件夹拷贝到老板或其他电脑，双击：
+把整个 `release\fa-huo-dashboard\` 文件夹拷贝到老板或其他电脑，双击：
 
 ```text
-发货看板.exe
+fa-huo-dashboard.exe
 ```
 
 ## 数据
@@ -30,7 +30,14 @@ release\发货看板\
 data\history.sqlite
 uploads\
 reports\
+reports\exports\
 shipment_config.json
+```
+
+导出的 CSV、JSON、PNG 会保存到：
+
+```text
+reports\exports\
 ```
 
 换电脑时如果要保留历史数据，把整个文件夹一起拷贝。

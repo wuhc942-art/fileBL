@@ -1,7 +1,7 @@
 import datetime as dt
 import unittest
 
-from app_server import build_dashboard_payload, is_write_allowed
+from app_server import build_dashboard_payload, is_write_allowed, save_export_file
 from summarize_shipments import SummaryResult
 
 
@@ -227,6 +227,17 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertFalse(is_write_allowed(readonly=True, admin_token="secret", headers={}, query={}))
         self.assertTrue(is_write_allowed(readonly=True, admin_token="secret", headers={"X-Admin-Token": "secret"}, query={}))
         self.assertTrue(is_write_allowed(readonly=True, admin_token="secret", headers={}, query={"adminToken": ["secret"]}))
+
+    def test_save_export_file_writes_under_exports_directory(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = save_export_file(Path(tmp), "daily.csv", "a,b\n1,2", "text")
+
+            self.assertTrue(Path(result["path"]).exists())
+            self.assertEqual(Path(result["path"]).parent.name, "exports")
+            self.assertEqual(Path(result["path"]).read_text(encoding="utf-8-sig"), "a,b\n1,2")
 
 
 if __name__ == "__main__":

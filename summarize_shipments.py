@@ -20,6 +20,8 @@ NS = {"a": SPREADSHEET_NS, "r": REL_NS}
 EXCEL_DATE_BASE = dt.date(1899, 12, 30)
 
 DETAIL_SHEET = "\u53d1\u8d27\u660e\u7ec6"
+HISTORY_SHEET = "\u53d1\u8d27\u5386\u53f2\u8bb0\u5f55"
+SHIPMENT_SHEETS = [HISTORY_SHEET, DETAIL_SHEET]
 SHIP_DATE = "\u9001\u8d27\u65e5\u671f"
 CUSTOMER = "\u5ba2\u6237\u7b80\u79f0"
 INTERNAL_CODE = "\u5185\u90e8\u7f16\u7801"
@@ -230,8 +232,8 @@ def _shipment_indexes(headers: dict[str, int]) -> dict[str, int | None]:
     }
 
 
-def extract_all_shipments(path: Path) -> list[dict]:
-    rows = read_sheet_rows(path)
+def _extract_shipments_from_sheet(path: Path, sheet_name: str) -> list[dict]:
+    rows = read_sheet_rows(path, sheet_name)
     header_idx, headers = find_header(rows)
     idx = _shipment_indexes(headers)
     out = []
@@ -264,6 +266,38 @@ def extract_all_shipments(path: Path) -> list[dict]:
             }
         )
     return out
+
+
+def _shipment_identity(row: dict) -> tuple:
+    return (
+        row.get("\u9001\u8d27\u65e5\u671f"),
+        str(row.get("\u9001\u8d27\u5355\u53f7") or "").strip(),
+        str(row.get("\u8ba2\u5355\u53f7") or "").strip(),
+        str(row.get("\u5ba2\u6237") or "").strip(),
+        str(row.get("\u5185\u90e8\u7f16\u7801") or "").strip(),
+        str(row.get("\u578b\u53f7/\u54c1\u540d") or "").strip(),
+        round(float(row.get("\u6570\u91cf") or 0), 6),
+        round(float(row.get("\u91d1\u989d") or 0), 6),
+    )
+
+
+def extract_all_shipments(path: Path) -> list[dict]:
+    rows = []
+    seen = set()
+    for sheet_name in SHIPMENT_SHEETS:
+        try:
+            sheet_rows = _extract_shipments_from_sheet(path, sheet_name)
+        except ValueError:
+            continue
+        for row in sheet_rows:
+            key = _shipment_identity(row)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
+    if not rows:
+        rows = _extract_shipments_from_sheet(path, DETAIL_SHEET)
+    return rows
 
 
 def _row_date(row: dict) -> dt.date | None:

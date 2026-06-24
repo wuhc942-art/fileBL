@@ -23,6 +23,7 @@ python -m PyInstaller `
     --windowed `
     --onedir `
     --name $AppName `
+    --icon (Join-Path $scriptRoot "assets\app_icon.ico") `
     --hidden-import webview.platforms.winforms `
     desktop_app.py
 
@@ -30,6 +31,7 @@ New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 Copy-Item -LiteralPath (Join-Path $distDir $AppName) -Destination $releaseDir -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $scriptRoot "web") -Destination (Join-Path $releaseDir "web") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $scriptRoot "shipment_config.json") -Destination (Join-Path $releaseDir "shipment_config.json") -Force
+Copy-Item -LiteralPath (Join-Path $scriptRoot "assets\app_icon.ico") -Destination (Join-Path $releaseDir "app_icon.ico") -Force
 
 New-Item -ItemType Directory -Force -Path (Join-Path $releaseDir "data") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $releaseDir "uploads") | Out-Null

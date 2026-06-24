@@ -586,6 +586,17 @@ function download(filename, content, type) {
   URL.revokeObjectURL(url);
 }
 
+async function saveExportFile(filename, content, encoding = "text") {
+  const response = await fetch("/api/export-file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename, content, encoding }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "导出失败");
+  setStatus("ready", "导出已保存", result.path);
+}
+
 els.dateInput.value = todayIso();
 updateFileList();
 
@@ -634,16 +645,19 @@ els.dropZone.addEventListener("keydown", (event) => {
 
 els.downloadCsvBtn.addEventListener("click", () => {
   if (!currentPayload) return;
-  download(`每日发货明细-${currentPayload.date}.csv`, toCsv(getVisibleRows()), "text/csv;charset=utf-8");
+  saveExportFile(`每日发货明细-${currentPayload.date}.csv`, toCsv(getVisibleRows())).catch((error) => {
+    setStatus("error", "导出失败", error.message);
+  });
 });
 
 els.downloadJsonBtn.addEventListener("click", () => {
   if (!currentPayload) return;
-  download(
+  saveExportFile(
     `每日发货看板-${currentPayload.date}.json`,
     JSON.stringify(currentPayload, null, 2),
-    "application/json;charset=utf-8",
-  );
+  ).catch((error) => {
+    setStatus("error", "导出失败", error.message);
+  });
 });
 
 els.downloadPngBtn.addEventListener("click", () => {
@@ -789,12 +803,14 @@ function exportPngReport(payload) {
     context.drawImage(image, 0, 0);
     URL.revokeObjectURL(url);
     canvas.toBlob((pngBlob) => {
-      const pngUrl = URL.createObjectURL(pngBlob);
-      const link = document.createElement("a");
-      link.href = pngUrl;
-      link.download = `每日发货日报-${payload.date}.png`;
-      link.click();
-      URL.revokeObjectURL(pngUrl);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = String(reader.result || "").split(",", 2)[1] || "";
+        saveExportFile(`每日发货日报-${payload.date}.png`, base64, "base64").catch((error) => {
+          setStatus("error", "导出失败", error.message);
+        });
+      };
+      reader.readAsDataURL(pngBlob);
     }, "image/png");
   };
   image.src = url;

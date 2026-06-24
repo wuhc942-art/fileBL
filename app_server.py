@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import datetime as dt
 import json
@@ -81,6 +82,22 @@ def _build_payload_from_rows(rows: list[dict], target_date: dt.date, sources: li
     reference_results = _build_reference_results(rows, target_date, sources)
     history_context = _build_history_context(rows, target_date)
     return build_dashboard_payload(result, reference_results, history_context)
+
+
+def _safe_export_name(filename: str) -> str:
+    name = Path(filename or "export.txt").name
+    return "".join(ch for ch in name if ch not in '<>:"/\\|?*').strip() or "export.txt"
+
+
+def save_export_file(report_dir: Path, filename: str, content: str, encoding: str = "text") -> dict:
+    export_dir = report_dir / "exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    target = export_dir / _safe_export_name(filename)
+    if encoding == "base64":
+        target.write_bytes(base64.b64decode(content))
+    else:
+        target.write_text(content, encoding="utf-8-sig")
+    return {"path": str(target), "directory": str(export_dir), "filename": target.name}
 
 
 def _source_check(path: Path, target_date: dt.date) -> dict:
@@ -652,6 +669,8 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
                 {"error": "Public read-only mode is enabled. Admin token is required for uploads or report saving."},
                 status=403,
             )
+        if parsed.path == "/api/export-file":
+            return self._export_file()
         if parsed.path == "/api/save-report":
             return self._save_report_package()
         if parsed.path != "/api/summarize":
@@ -668,6 +687,20 @@ class ShipmentDashboardHandler(SimpleHTTPRequestHandler):
             history_rows = load_history_rows(HISTORY_DB)
             payload = _build_payload_from_rows(history_rows, target_date, paths)
             self._send_json(payload)
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, status=400)
+
+    def _export_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            result = save_export_file(
+                REPORT_DIR,
+                payload.get("filename") or "export.txt",
+                payload.get("content") or "",
+                payload.get("encoding") or "text",
+            )
+            self._send_json(result)
         except Exception as exc:
             self._send_json({"error": str(exc)}, status=400)
 
