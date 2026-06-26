@@ -964,6 +964,35 @@ th {
   white-space: nowrap;
 }
 
+.category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.category-pill,
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid rgb(8 127 140 / 0.24);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.category-chip {
+  color: #33474c;
+  background: #fbfdfd;
+}
+
+.muted-inline {
+  color: var(--muted);
+}
+
 .customer-drawer {
   position: fixed;
   inset: 0;

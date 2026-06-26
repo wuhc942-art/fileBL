@@ -25,6 +25,7 @@ const els = {
   customerChart: document.querySelector("#customerChart"),
   modelChart: document.querySelector("#modelChart"),
   sourceChart: document.querySelector("#sourceChart"),
+  materialCategoryChart: document.querySelector("#materialCategoryChart"),
   customerTable: document.querySelector("#customerTable"),
   detailTable: document.querySelector("#detailTable"),
   customerSummaryCount: document.querySelector("#customerSummaryCount"),
@@ -203,6 +204,7 @@ function render(payload) {
   renderBars(els.customerChart, payload.charts.customers, "amount", "customer");
   renderBars(els.modelChart, payload.charts.models, "amount", "model");
   renderBars(els.sourceChart, payload.charts.sources, "amount");
+  renderBars(els.materialCategoryChart, payload.charts.materialCategories || [], "amount");
   renderInsights(payload.insights || []);
   renderFileCheck(payload.fileCheck);
   renderImportChecks(payload.importChecks);
@@ -428,6 +430,7 @@ function renderAnomalies(anomalies) {
 function renderRules() {
   els.ruleSummary.innerHTML = `
     <span>已内置：纯胶膜、覆盖膜、保护膜、离型膜可使用规格作为产品名称。</span>
+    <span>材料大类可在 <code>shipment_config.json</code> 的 material_categories 中维护关键词。</span>
     <span>客户/型号别名可在 <code>shipment_config.json</code> 的 aliases 中维护。</span>
   `;
 }
@@ -475,6 +478,8 @@ function renderCustomerTable(rows) {
       (row) => `
         <tr>
           <td><button class="customer-link" type="button" data-customer="${escapeHtml(row.customer)}">${escapeHtml(row.customer)}</button></td>
+          <td>${renderCategoryPill(row.primaryMaterialCategory)}</td>
+          <td>${renderCategoryBreakdown(row.materialCategories || [])}</td>
           <td class="num">${formatNumber(row.rows)}</td>
           <td class="num">${formatNumber(row.quantity)}</td>
           <td class="num">${formatMoney(row.amount)}</td>
@@ -492,6 +497,7 @@ function renderDetailTable(rows) {
         <tr>
           <td>${escapeHtml(row.customer)}</td>
           <td>${escapeHtml(row.model)}</td>
+          <td>${renderCategoryPill(row.materialCategory)}</td>
           <td>${escapeHtml(row.spec)}</td>
           <td>${escapeHtml(row.unit)}</td>
           <td class="num">${formatNumber(row.quantity)}</td>
@@ -518,13 +524,30 @@ function renderFlags(flags = []) {
   return `<div class="flag-list">${flags.map((flag) => `<span class="flag">${labels[flag] || flag}</span>`).join("")}</div>`;
 }
 
+function renderCategoryPill(category) {
+  return `<span class="category-pill">${escapeHtml(category || "其他")}</span>`;
+}
+
+function renderCategoryBreakdown(categories = []) {
+  if (!categories.length) return `<span class="muted-inline">-</span>`;
+  return `
+    <div class="category-list">
+      ${categories.slice(0, 4).map((item) => `
+        <span class="category-chip" title="${escapeHtml(item.name)}：${formatMoney(item.amount)}">
+          ${escapeHtml(item.name)} ${formatNumber(item.share)}%
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
 function getVisibleRows() {
   if (!currentPayload) return [];
   const query = viewState.query.trim().toLowerCase();
   const rows = currentPayload.rows.filter((row) => {
     if (viewState.onlyAnomaly && !(row.anomalies || []).length) return false;
     if (!query) return true;
-    return [row.customer, row.model, row.spec, row.deliveryNo, row.orderNo, row.source]
+    return [row.customer, row.model, row.materialCategory, row.spec, row.deliveryNo, row.orderNo, row.source]
       .some((value) => String(value || "").toLowerCase().includes(query));
   });
   const direction = viewState.sortDirection === "asc" ? 1 : -1;
@@ -553,6 +576,7 @@ function openCustomerDrawer(customer) {
   els.drawerHead.innerHTML = `
     <tr>
       <th>型号/品名</th>
+      <th>材料大类</th>
       <th>规格</th>
       <th>数量</th>
       <th>金额</th>
@@ -569,6 +593,7 @@ function openCustomerDrawer(customer) {
       (row) => `
         <tr>
           <td>${escapeHtml(row.model)}</td>
+          <td>${renderCategoryPill(row.materialCategory)}</td>
           <td>${escapeHtml(row.spec)}</td>
           <td class="num">${formatNumber(row.quantity)}</td>
           <td class="num">${formatMoney(row.amount)}</td>
@@ -623,8 +648,8 @@ function closeCustomerDrawer() {
 }
 
 function toCsv(rows) {
-  const headers = ["客户", "型号/品名", "规格", "单位", "数量", "单价", "金额", "送货单号", "订单号", "来源文件", "备注"];
-  const keys = ["customer", "model", "spec", "unit", "quantity", "price", "amount", "deliveryNo", "orderNo", "source", "note"];
+  const headers = ["客户", "型号/品名", "材料大类", "规格", "单位", "数量", "单价", "金额", "送货单号", "订单号", "来源文件", "备注"];
+  const keys = ["customer", "model", "materialCategory", "spec", "unit", "quantity", "price", "amount", "deliveryNo", "orderNo", "source", "note"];
   const lines = [headers.join(",")];
   rows.forEach((row) => {
     lines.push(keys.map((key) => csvCell(row[key])).join(","));

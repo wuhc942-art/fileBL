@@ -54,10 +54,47 @@ APP_CONFIG = load_config(ROOT / "shipment_config.json") if (ROOT / "shipment_con
 configure_business_rules(APP_CONFIG)
 HIGH_VALUE_THRESHOLD = float(APP_CONFIG.get("high_value_threshold", 100000))
 APP_VERSION = "v1.0.4"
+DEFAULT_MATERIAL_CATEGORIES = [
+    {"name": "补强", "keywords": ["补强", "FR4", "钢片", "PI补强"]},
+    {"name": "覆盖膜", "keywords": ["覆盖膜", "保护膜", "CVL"]},
+    {"name": "基材", "keywords": ["基材", "铜箔", "FCCL", "PI基材"]},
+]
+MATERIAL_CATEGORIES = APP_CONFIG.get("material_categories") or DEFAULT_MATERIAL_CATEGORIES
 
 
 def _round(value: float) -> float:
     return round(float(value or 0), 2)
+
+
+def _classify_material_category(model: str, spec: str = "") -> str:
+    text = f"{model or ''} {spec or ''}".lower()
+    for category in MATERIAL_CATEGORIES:
+        name = str(category.get("name") or "").strip()
+        keywords = category.get("keywords") or []
+        if name and any(str(keyword).strip().lower() in text for keyword in keywords if str(keyword).strip()):
+            return name
+    return "其他"
+
+
+def _amount_breakdown_by_key(rows: list[dict], key: str) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    total = sum(float(row.get("amount") or 0) for row in rows)
+    for row in rows:
+        name = str(row.get(key) or "其他").strip() or "其他"
+        item = grouped.setdefault(name, {"name": name, "amount": 0.0, "quantity": 0.0, "rows": 0})
+        item["amount"] += float(row.get("amount") or 0)
+        item["quantity"] += float(row.get("quantity") or 0)
+        item["rows"] += 1
+    output = sorted(grouped.values(), key=lambda item: item["amount"], reverse=True)
+    for item in output:
+        item["amount"] = _round(item["amount"])
+        item["quantity"] = _round(item["quantity"])
+        item["share"] = _round(item["amount"] / total * 100) if total else 0
+    return output
+
+
+def _customer_material_breakdown(rows: list[dict], customer: str) -> list[dict]:
+    return _amount_breakdown_by_key([row for row in rows if row.get("customer") == customer], "materialCategory")
 
 
 def configure_storage_root(storage_root: Path | str, migrate_from: Path | None = None) -> dict:
@@ -671,6 +708,7 @@ def build_dashboard_payload(
             "deliveryNo": row.get("送货单号", ""),
             "orderNo": row.get("订单号", ""),
             "note": row.get("备注", ""),
+            "materialCategory": _classify_material_category(row.get("型号/品名", ""), row.get("规格", "")),
             "anomalies": _anomaly_flags(row, duplicates),
         }
         for row in result.rows
@@ -681,6 +719,12 @@ def build_dashboard_payload(
             "rows": row.get("发货笔数", 0),
             "quantity": _round(row.get("数量", 0)),
             "amount": _round(row.get("金额", 0)),
+            "primaryMaterialCategory": (
+                _customer_material_breakdown(rows, row.get("客户", ""))[0]["name"]
+                if _customer_material_breakdown(rows, row.get("客户", ""))
+                else "其他"
+            ),
+            "materialCategories": _customer_material_breakdown(rows, row.get("客户", "")),
         }
         for row in result.by_customer
     ]
@@ -718,6 +762,7 @@ def build_dashboard_payload(
             "customers": customer_chart_rows,
             "models": model_rows,
             "sources": source_rows,
+            "materialCategories": _amount_breakdown_by_key(rows, "materialCategory"),
         },
         "comparisons": _build_comparisons(result, reference_results),
         "modelDetails": _build_model_details(rows),

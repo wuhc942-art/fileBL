@@ -12,6 +12,11 @@
     { "model": "保护膜", "use_spec_as_name": true },
     { "model": "离型膜", "use_spec_as_name": true }
   ],
+  "material_categories": [
+    { "name": "补强", "keywords": ["补强", "FR4", "钢片", "PI补强"] },
+    { "name": "覆盖膜", "keywords": ["覆盖膜", "保护膜", "CVL"] },
+    { "name": "基材", "keywords": ["基材", "铜箔", "FCCL", "PI基材"] }
+  ],
   "aliases": {
     "customers": {},
     "models": {}

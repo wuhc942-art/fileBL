@@ -121,6 +121,68 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertTrue(any("客户B" in insight for insight in payload["insights"]))
         self.assertTrue(any("型号1" in insight for insight in payload["insights"]))
 
+    def test_build_dashboard_payload_classifies_customer_material_categories(self):
+        result = SummaryResult(
+            date=dt.date(2026, 6, 23),
+            sources=["a.xlsx"],
+            rows=[
+                {
+                    "来源文件": "a.xlsx",
+                    "客户": "客户A",
+                    "型号/品名": "补强板",
+                    "规格": "FR4",
+                    "单位": "张",
+                    "数量": 2.0,
+                    "单价": 50.0,
+                    "金额": 100.0,
+                    "送货单号": "D1",
+                    "订单号": "O1",
+                },
+                {
+                    "来源文件": "a.xlsx",
+                    "客户": "客户A",
+                    "型号/品名": "覆盖膜 / AU-25KA",
+                    "规格": "W500",
+                    "单位": "卷",
+                    "数量": 1.0,
+                    "单价": 200.0,
+                    "金额": 200.0,
+                    "送货单号": "D2",
+                    "订单号": "O2",
+                },
+                {
+                    "来源文件": "a.xlsx",
+                    "客户": "客户B",
+                    "型号/品名": "PI基材",
+                    "规格": "12.5um",
+                    "单位": "卷",
+                    "数量": 1.0,
+                    "单价": 300.0,
+                    "金额": 300.0,
+                    "送货单号": "D3",
+                    "订单号": "O3",
+                },
+            ],
+            by_customer=[
+                {"客户": "客户B", "发货笔数": 1, "数量": 1.0, "金额": 300.0},
+                {"客户": "客户A", "发货笔数": 2, "数量": 3.0, "金额": 300.0},
+            ],
+            total_rows=3,
+            total_amount=600.0,
+            total_quantity=4.0,
+            customer_count=2,
+        )
+
+        payload = build_dashboard_payload(result)
+
+        self.assertEqual(payload["rows"][0]["materialCategory"], "补强")
+        self.assertEqual(payload["rows"][1]["materialCategory"], "覆盖膜")
+        self.assertEqual(payload["rows"][2]["materialCategory"], "基材")
+        customer_a = next(row for row in payload["customers"] if row["customer"] == "客户A")
+        self.assertEqual(customer_a["primaryMaterialCategory"], "覆盖膜")
+        self.assertEqual(customer_a["materialCategories"][0]["name"], "覆盖膜")
+        self.assertEqual(payload["charts"]["materialCategories"][0]["name"], "基材")
+
 
     def test_build_dashboard_payload_includes_business_speed_metrics(self):
         today = self._result(
