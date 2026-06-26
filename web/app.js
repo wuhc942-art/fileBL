@@ -396,7 +396,10 @@ function renderBusinessAlerts(alerts) {
 
 function renderCustomerProfileOptions(payload) {
   if (!els.customerProfileList) return;
-  const names = (payload.customers || []).map((row) => row.customer).filter(Boolean);
+  const names = Array.from(new Set([
+    ...(payload.customers || []).map((row) => row.customer).filter(Boolean),
+    ...Object.keys(payload.customerHistoryDetails || {}),
+  ]));
   els.customerProfileList.innerHTML = names
     .map((name) => `<option value="${escapeHtml(name)}"></option>`)
     .join("");
@@ -406,7 +409,7 @@ function findCustomerName(query) {
   if (!currentPayload) return "";
   const text = String(query || "").trim().toLowerCase();
   if (!text) return "";
-  const names = Object.keys(currentPayload.customerDetails || {});
+  const names = Object.keys(currentPayload.customerHistoryDetails || currentPayload.customerDetails || {});
   return (
     names.find((name) => name.toLowerCase() === text) ||
     names.find((name) => name.toLowerCase().includes(text)) ||
@@ -450,7 +453,7 @@ function renderCustomerProfile(customerName = "") {
     els.customerProfileResult.innerHTML = `<p class="empty-chart">输入客户名称后，会自动总结主发大类和主发型号。</p>`;
     return;
   }
-  const rows = currentPayload.customerDetails?.[customer] || [];
+  const rows = currentPayload.customerHistoryDetails?.[customer] || currentPayload.customerDetails?.[customer] || [];
   const profile = window.buildCustomerProfile(rows);
   els.customerProfileInput.value = customer;
   els.customerProfileResult.innerHTML = `
@@ -475,7 +478,7 @@ function renderCustomerProfile(customerName = "") {
         <em>${formatNumber(profile.total.quantity)} / ${formatNumber(profile.total.rows)} 笔</em>
       </article>
     </div>
-    <p class="profile-conclusion">${escapeHtml(customerProfileSummaryText(customer, profile))}</p>
+    <p class="profile-conclusion">${escapeHtml(`${customerProfileSummaryText(customer, profile)} 统计口径：历史至今。`)}</p>
     <div class="profile-breakdowns">
       <section>
         <h4>材料大类</h4>

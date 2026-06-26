@@ -158,7 +158,14 @@ def _build_payload_from_rows(rows: list[dict], target_date: dt.date, sources: li
     result = summarize_rows(rows, target_date, sources)
     reference_results = _build_reference_results(rows, target_date, sources)
     history_context = _build_history_context(rows, target_date)
-    return build_dashboard_payload(result, reference_results, history_context)
+    payload = build_dashboard_payload(result, reference_results, history_context)
+    history_rows = [
+        row
+        for row in rows
+        if (parse_date(row.get(SHIP_DATE)) or dt.date.max) <= target_date
+    ]
+    payload["customerHistoryDetails"] = _build_customer_details(_frontend_rows(history_rows))
+    return payload
 
 
 def _safe_export_name(filename: str) -> str:
@@ -589,6 +596,35 @@ def _customer_amounts(result: SummaryResult) -> dict[str, float]:
     return {row.get("客户", ""): float(row.get("金额") or 0) for row in result.by_customer}
 
 
+def _frontend_rows(raw_rows: list[dict], duplicates: set[tuple] | None = None) -> list[dict]:
+    duplicates = duplicates or set()
+    return [
+        {
+            "source": row.get("来源文件", ""),
+            "customer": row.get("客户", ""),
+            "model": row.get("型号/品名", ""),
+            "spec": row.get("规格", ""),
+            "unit": row.get("单位", ""),
+            "quantity": _round(row.get("数量", 0)),
+            "price": _round(row.get("单价", 0)),
+            "amount": _round(row.get("金额", 0)),
+            "deliveryNo": row.get("送货单号", ""),
+            "orderNo": row.get("订单号", ""),
+            "note": row.get("备注", ""),
+            "materialCategory": _classify_material_category(row.get("型号/品名", ""), row.get("规格", "")),
+            "anomalies": _anomaly_flags(row, duplicates),
+        }
+        for row in raw_rows
+    ]
+
+
+def _build_customer_details(rows: list[dict]) -> dict[str, list[dict]]:
+    customer_details: dict[str, list[dict]] = {}
+    for row in rows:
+        customer_details.setdefault(row["customer"] or "未填写客户", []).append(row)
+    return customer_details
+
+
 def _build_business_alerts(result: SummaryResult, reference_results: dict[str, SummaryResult] | None) -> dict:
     reference_results = reference_results or {}
     today_customers = set(_customer_amounts(result))
@@ -702,24 +738,7 @@ def build_dashboard_payload(
     history_context: dict | None = None,
 ) -> dict:
     duplicates = _duplicate_keys(result.rows)
-    rows = [
-        {
-            "source": row.get("来源文件", ""),
-            "customer": row.get("客户", ""),
-            "model": row.get("型号/品名", ""),
-            "spec": row.get("规格", ""),
-            "unit": row.get("单位", ""),
-            "quantity": _round(row.get("数量", 0)),
-            "price": _round(row.get("单价", 0)),
-            "amount": _round(row.get("金额", 0)),
-            "deliveryNo": row.get("送货单号", ""),
-            "orderNo": row.get("订单号", ""),
-            "note": row.get("备注", ""),
-            "materialCategory": _classify_material_category(row.get("型号/品名", ""), row.get("规格", "")),
-            "anomalies": _anomaly_flags(row, duplicates),
-        }
-        for row in result.rows
-    ]
+    rows = _frontend_rows(result.rows, duplicates)
     customers = [
         {
             "customer": row.get("客户", ""),
@@ -735,9 +754,7 @@ def build_dashboard_payload(
         }
         for row in result.by_customer
     ]
-    customer_details: dict[str, list[dict]] = {}
-    for row in rows:
-        customer_details.setdefault(row["customer"] or "未填写客户", []).append(row)
+    customer_details = _build_customer_details(rows)
 
     model_rows = _group(result.rows, "型号/品名", limit=10)
     source_rows = _group(result.rows, "来源文件", limit=10)
@@ -778,6 +795,7 @@ def build_dashboard_payload(
         "anomalies": anomalies,
         "insights": _build_insights(result, customer_chart_rows, model_rows, anomalies),
         "customerDetails": customer_details,
+        "customerHistoryDetails": customer_details,
         "customers": customers,
         "rows": rows,
     }

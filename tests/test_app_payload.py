@@ -226,6 +226,45 @@ class DashboardPayloadTest(unittest.TestCase):
             finally:
                 configure_material_catalog(None)
 
+    def test_payload_customer_history_details_include_rows_before_target_date(self):
+        target_date = dt.date(2026, 6, 23)
+        rows = [
+            {
+                "来源文件": "history.xlsx",
+                "送货日期": target_date - dt.timedelta(days=10),
+                "客户": "固定客户",
+                "型号/品名": "纯胶膜",
+                "规格": "AE15P-25KA",
+                "单位": "㎡",
+                "数量": 10.0,
+                "单价": 30.0,
+                "金额": 300.0,
+                "送货单号": "H1",
+                "订单号": "O1",
+            },
+            {
+                "来源文件": "today.xlsx",
+                "送货日期": target_date,
+                "客户": "固定客户",
+                "型号/品名": "补强板",
+                "规格": "FR4",
+                "单位": "张",
+                "数量": 1.0,
+                "单价": 10.0,
+                "金额": 10.0,
+                "送货单号": "D1",
+                "订单号": "O2",
+            },
+        ]
+
+        payload = _build_payload_from_rows(rows, target_date, ["history.xlsx"])
+
+        history_rows = payload["customerHistoryDetails"]["固定客户"]
+        self.assertEqual(len(history_rows), 2)
+        self.assertEqual(history_rows[0]["materialCategory"], "纯胶")
+        self.assertEqual(history_rows[1]["materialCategory"], "补强")
+        self.assertEqual(payload["customerDetails"]["固定客户"][0]["materialCategory"], "补强")
+
 
     def test_build_dashboard_payload_includes_business_speed_metrics(self):
         today = self._result(
