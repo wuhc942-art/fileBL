@@ -59,6 +59,10 @@ const els = {
   backupBtn: document.querySelector("#backupBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
   materialCatalogBtn: document.querySelector("#materialCatalogBtn"),
+  customerProfileInput: document.querySelector("#customerProfileInput"),
+  customerProfileList: document.querySelector("#customerProfileList"),
+  customerProfileBtn: document.querySelector("#customerProfileBtn"),
+  customerProfileResult: document.querySelector("#customerProfileResult"),
   appVersion: document.querySelector("#appVersion"),
 };
 
@@ -213,6 +217,8 @@ function render(payload) {
   renderImportSummary(payload.importSummary);
   renderAnomalies(payload.anomalies);
   renderRules();
+  renderCustomerProfileOptions(payload);
+  renderCustomerProfile();
   renderCustomerTable(payload.customers);
   renderDetailTable(getVisibleRows());
   applyTemplate(viewState.template);
@@ -385,6 +391,101 @@ function renderBusinessAlerts(alerts) {
         <span class="tag-muted">${escapeHtml(name)}</span>
       `).join("") : `<p class="empty-chart">没有发现超过 14 天未发货的历史客户。</p>`}
     </article>
+  `;
+}
+
+function renderCustomerProfileOptions(payload) {
+  if (!els.customerProfileList) return;
+  const names = (payload.customers || []).map((row) => row.customer).filter(Boolean);
+  els.customerProfileList.innerHTML = names
+    .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+    .join("");
+}
+
+function findCustomerName(query) {
+  if (!currentPayload) return "";
+  const text = String(query || "").trim().toLowerCase();
+  if (!text) return "";
+  const names = Object.keys(currentPayload.customerDetails || {});
+  return (
+    names.find((name) => name.toLowerCase() === text) ||
+    names.find((name) => name.toLowerCase().includes(text)) ||
+    ""
+  );
+}
+
+function customerProfileSummaryText(customer, profile) {
+  const category = profile.primaryCategory?.name || "暂无";
+  const categoryShare = profile.primaryCategory ? `${formatNumber(profile.primaryCategory.share)}%` : "0%";
+  const model = profile.primaryModel?.name || "暂无";
+  const modelShare = profile.primaryModel ? `${formatNumber(profile.primaryModel.share)}%` : "0%";
+  return `${customer} 主发 ${category}，金额占比 ${categoryShare}；主发型号 ${model}，金额占比 ${modelShare}。`;
+}
+
+function renderProfileTopList(items, emptyText) {
+  if (!items.length) return `<p class="empty-chart">${escapeHtml(emptyText)}</p>`;
+  return `
+    <div class="profile-list">
+      ${items.slice(0, 6).map((item) => `
+        <div class="profile-row" title="${escapeHtml(item.name)}">
+          <span>${escapeHtml(item.name)}</span>
+          <strong>${formatMoney(item.amount)}</strong>
+          <em>${formatNumber(item.share)}%</em>
+          <small>${formatNumber(item.quantity)} / ${formatNumber(item.rows)} 笔</small>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderCustomerProfile(customerName = "") {
+  if (!els.customerProfileResult) return;
+  if (!currentPayload) {
+    els.customerProfileResult.innerHTML = `<p class="empty-chart">导入 Excel 或读取历史库后，可以查询客户材料画像。</p>`;
+    return;
+  }
+  const query = customerName || els.customerProfileInput.value;
+  const customer = findCustomerName(query);
+  if (!customer) {
+    els.customerProfileResult.innerHTML = `<p class="empty-chart">输入客户名称后，会自动总结主发大类和主发型号。</p>`;
+    return;
+  }
+  const rows = currentPayload.customerDetails?.[customer] || [];
+  const profile = window.buildCustomerProfile(rows);
+  els.customerProfileInput.value = customer;
+  els.customerProfileResult.innerHTML = `
+    <div class="profile-summary">
+      <article>
+        <span>客户</span>
+        <strong>${escapeHtml(customer)}</strong>
+      </article>
+      <article>
+        <span>主发大类</span>
+        <strong>${escapeHtml(profile.primaryCategory?.name || "暂无")}</strong>
+        <em>${profile.primaryCategory ? `${formatNumber(profile.primaryCategory.share)}% · ${formatMoney(profile.primaryCategory.amount)}` : "无金额"}</em>
+      </article>
+      <article>
+        <span>主发型号</span>
+        <strong>${escapeHtml(profile.primaryModel?.name || "暂无")}</strong>
+        <em>${profile.primaryModel ? `${formatNumber(profile.primaryModel.share)}% · ${formatMoney(profile.primaryModel.amount)}` : "无金额"}</em>
+      </article>
+      <article>
+        <span>合计</span>
+        <strong>${formatMoney(profile.total.amount)}</strong>
+        <em>${formatNumber(profile.total.quantity)} / ${formatNumber(profile.total.rows)} 笔</em>
+      </article>
+    </div>
+    <p class="profile-conclusion">${escapeHtml(customerProfileSummaryText(customer, profile))}</p>
+    <div class="profile-breakdowns">
+      <section>
+        <h4>材料大类</h4>
+        ${renderProfileTopList(profile.categories, "暂无材料大类数据。")}
+      </section>
+      <section>
+        <h4>常发型号</h4>
+        ${renderProfileTopList(profile.models, "暂无型号数据。")}
+      </section>
+    </div>
   `;
 }
 
@@ -572,6 +673,7 @@ function updateSortButtons() {
 function openCustomerDrawer(customer) {
   if (!currentPayload) return;
   const rows = currentPayload.customerDetails?.[customer] || [];
+  renderCustomerProfile(customer);
   const totalQuantity = rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
   const totalAmount = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   els.drawerTitle.textContent = customer;
@@ -944,6 +1046,21 @@ els.modelChart.addEventListener("click", (event) => {
 els.businessAlertGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-customer]");
   if (button) openCustomerDrawer(button.dataset.customer);
+});
+
+els.customerProfileBtn.addEventListener("click", () => {
+  renderCustomerProfile();
+});
+
+els.customerProfileInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    renderCustomerProfile();
+  }
+});
+
+els.customerProfileInput.addEventListener("change", () => {
+  renderCustomerProfile();
 });
 
 els.drawerRows.addEventListener("click", (event) => {
