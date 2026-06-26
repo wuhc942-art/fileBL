@@ -80,6 +80,8 @@ def start_dashboard_server(port: int) -> ThreadingHTTPServer:
     os.environ.setdefault("SHIPMENT_APP_ROOT", str(root))
     if settings.get("dataDir"):
         os.environ["SHIPMENT_DATA_ROOT"] = settings["dataDir"]
+    if settings.get("materialCatalogPath"):
+        os.environ["SHIPMENT_MATERIAL_CATALOG"] = settings["materialCatalogPath"]
     from app_server import DATA_DIR, REPORT_DIR, STATIC_DIR, UPLOAD_DIR, ShipmentDashboardHandler
 
     STATIC_DIR.mkdir(exist_ok=True)
@@ -99,13 +101,15 @@ class DesktopApi:
 
     def get_settings(self) -> dict:
         settings = load_settings(self.root)
-        from app_server import DATA_DIR, HISTORY_DB, REPORT_DIR, STORAGE_ROOT
+        from app_server import DATA_DIR, HISTORY_DB, MATERIAL_CATALOG, MATERIAL_CATALOG_PATH, REPORT_DIR, STORAGE_ROOT
 
         return {
             "dataDir": str(STORAGE_ROOT),
             "historyDb": str(HISTORY_DB),
             "reportDir": str(REPORT_DIR),
             "hasHistory": HISTORY_DB.exists(),
+            "materialCatalogPath": str(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH else "",
+            "materialCatalogRows": len(MATERIAL_CATALOG),
         }
 
     def choose_data_directory(self) -> dict:
@@ -169,6 +173,31 @@ class DesktopApi:
             return {"cancelled": True}
         result = restore_data_backup(Path(selected[0]), STORAGE_ROOT)
         configure_storage_root(STORAGE_ROOT)
+        return result
+
+    def choose_material_catalog_file(self) -> dict:
+        import webview
+        from app_server import DATA_DIR, STORAGE_ROOT, configure_material_catalog
+
+        selected = webview.windows[0].create_file_dialog(
+            webview.OPEN_DIALOG,
+            directory=str(STORAGE_ROOT),
+            file_types=("Excel files (*.xlsx)",),
+        )
+        if not selected:
+            return {"cancelled": True}
+        source = Path(selected[0]).resolve()
+        if source.suffix.lower() != ".xlsx":
+            raise ValueError("请选择 .xlsx 格式的材料类型表")
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        target = DATA_DIR / "material_catalog.xlsx"
+        if source.resolve() != target.resolve():
+            target.write_bytes(source.read_bytes())
+        settings = load_settings(self.root)
+        settings["materialCatalogPath"] = str(target)
+        save_settings(self.root, settings)
+        result = configure_material_catalog(target)
+        result["cancelled"] = False
         return result
 
 

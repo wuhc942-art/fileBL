@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from history_store import load_history_rows, save_history_rows
+from material_catalog import classify_material, load_material_catalog
 from summarize_shipments import (
     DETAIL_SHEET,
     HISTORY_SHEET,
@@ -60,6 +61,8 @@ DEFAULT_MATERIAL_CATEGORIES = [
     {"name": "基材", "keywords": ["基材", "铜箔", "FCCL", "PI基材"]},
 ]
 MATERIAL_CATEGORIES = APP_CONFIG.get("material_categories") or DEFAULT_MATERIAL_CATEGORIES
+MATERIAL_CATALOG_PATH = Path(os.environ.get("SHIPMENT_MATERIAL_CATALOG") or "").resolve() if os.environ.get("SHIPMENT_MATERIAL_CATALOG") else None
+MATERIAL_CATALOG = load_material_catalog(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH and MATERIAL_CATALOG_PATH.exists() else {}
 
 
 def _round(value: float) -> float:
@@ -67,13 +70,17 @@ def _round(value: float) -> float:
 
 
 def _classify_material_category(model: str, spec: str = "") -> str:
-    text = f"{model or ''} {spec or ''}".lower()
-    for category in MATERIAL_CATEGORIES:
-        name = str(category.get("name") or "").strip()
-        keywords = category.get("keywords") or []
-        if name and any(str(keyword).strip().lower() in text for keyword in keywords if str(keyword).strip()):
-            return name
-    return "其他"
+    return classify_material(model, spec, MATERIAL_CATALOG, MATERIAL_CATEGORIES)
+
+
+def configure_material_catalog(path: Path | str | None) -> dict:
+    global MATERIAL_CATALOG_PATH, MATERIAL_CATALOG
+    MATERIAL_CATALOG_PATH = Path(path).resolve() if path else None
+    MATERIAL_CATALOG = load_material_catalog(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH and MATERIAL_CATALOG_PATH.exists() else {}
+    return {
+        "materialCatalogPath": str(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH else "",
+        "materialCatalogRows": len(MATERIAL_CATALOG),
+    }
 
 
 def _amount_breakdown_by_key(rows: list[dict], key: str) -> list[dict]:

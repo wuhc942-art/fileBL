@@ -58,6 +58,7 @@ const els = {
   welcomePanel: document.querySelector("#welcomePanel"),
   backupBtn: document.querySelector("#backupBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
+  materialCatalogBtn: document.querySelector("#materialCatalogBtn"),
   appVersion: document.querySelector("#appVersion"),
 };
 
@@ -180,6 +181,7 @@ function setBusy(isBusy) {
   els.dataDirBtn.disabled = isBusy;
   els.backupBtn.disabled = isBusy;
   els.restoreBtn.disabled = isBusy;
+  els.materialCatalogBtn.disabled = isBusy;
 }
 
 function updateWelcomeVisibility(hasData) {
@@ -723,11 +725,33 @@ async function refreshSettings() {
   try {
     const settings = await window.pywebview.api.get_settings();
     const dataDir = settings?.dataDir || "";
-    els.currentDataDir.textContent = `数据目录：${dataDir}`;
+    const catalogText = settings?.materialCatalogRows
+      ? ` · 材料类型 ${formatNumber(settings.materialCatalogRows)} 条`
+      : " · 未选择材料类型表";
+    els.currentDataDir.textContent = `数据目录：${dataDir}${catalogText}`;
     els.currentDataDir.title = dataDir || "当前数据保存位置";
   } catch (error) {
     els.currentDataDir.textContent = "数据目录：读取失败";
     els.currentDataDir.title = error.message;
+  }
+}
+
+async function chooseMaterialCatalogFile() {
+  if (!window.pywebview?.api?.choose_material_catalog_file) {
+    setStatus("ready", "材料类型表仅桌面版可用", "请在桌面 App 中选择材料类型表。");
+    return;
+  }
+  try {
+    const result = await window.pywebview.api.choose_material_catalog_file();
+    if (result?.cancelled) {
+      setStatus("ready", "已取消", "材料类型表没有改变。");
+      return;
+    }
+    setStatus("ready", "材料类型表已读取", `识别 ${formatNumber(result.materialCatalogRows || 0)} 条产品类型。`);
+    await refreshSettings();
+    loadHistorySummary();
+  } catch (error) {
+    setStatus("error", "读取材料类型表失败", error.message);
   }
 }
 
@@ -816,6 +840,10 @@ els.dropZone.addEventListener("keydown", (event) => {
 
 els.dataDirBtn.addEventListener("click", () => {
   chooseDataDirectory();
+});
+
+els.materialCatalogBtn.addEventListener("click", () => {
+  chooseMaterialCatalogFile();
 });
 
 els.backupBtn.addEventListener("click", () => {

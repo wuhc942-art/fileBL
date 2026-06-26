@@ -6,6 +6,7 @@ from app_server import (
     _build_import_summary,
     _build_payload_from_rows,
     build_dashboard_payload,
+    configure_material_catalog,
     configure_storage_root,
     is_write_allowed,
     save_export_file,
@@ -182,6 +183,48 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(customer_a["primaryMaterialCategory"], "覆盖膜")
         self.assertEqual(customer_a["materialCategories"][0]["name"], "覆盖膜")
         self.assertEqual(payload["charts"]["materialCategories"][0]["name"], "基材")
+
+    def test_material_catalog_overrides_keyword_classification(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workbook = Path(tmp) / "catalog.xlsx"
+            _write_xlsx_named_sheets(
+                workbook,
+                {"库存": [["产品名称", "材料类型"], ["AU-25KA", "覆盖膜"]]},
+            )
+            try:
+                configure_material_catalog(workbook)
+                result = SummaryResult(
+                    date=dt.date(2026, 6, 23),
+                    sources=["a.xlsx"],
+                    rows=[
+                        {
+                            "来源文件": "a.xlsx",
+                            "客户": "客户A",
+                            "型号/品名": "AU-25KA",
+                            "规格": "",
+                            "单位": "卷",
+                            "数量": 1.0,
+                            "单价": 10.0,
+                            "金额": 10.0,
+                            "送货单号": "D1",
+                            "订单号": "O1",
+                        }
+                    ],
+                    by_customer=[{"客户": "客户A", "发货笔数": 1, "数量": 1.0, "金额": 10.0}],
+                    total_rows=1,
+                    total_amount=10.0,
+                    total_quantity=1.0,
+                    customer_count=1,
+                )
+
+                payload = build_dashboard_payload(result)
+
+                self.assertEqual(payload["rows"][0]["materialCategory"], "覆盖膜")
+            finally:
+                configure_material_catalog(None)
 
 
     def test_build_dashboard_payload_includes_business_speed_metrics(self):
