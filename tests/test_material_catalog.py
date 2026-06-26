@@ -66,6 +66,22 @@ class MaterialCatalogTest(unittest.TestCase):
         self.assertEqual(classify_material("纯胶膜", "AE15P-25KA（W250）", {}, rules), "纯胶")
         self.assertEqual(classify_material("KEF-EHFAM2035S1", "单面基材EHF252035", {}, rules), "基材")
 
+    def test_classify_material_ignores_generic_catalog_tokens_and_uses_model_family(self):
+        catalog = {
+            "0": "纯胶",
+            "KTS-PI9000SXX1-222": "补强",
+            "OKT-PI3025(U)": "补强",
+        }
+
+        self.assertEqual(classify_material("KTS-PI9000(U)", "PI=9mil", catalog, []), "补强")
+        self.assertEqual(classify_material("KTS-9000(U)", "PI=9mil", catalog, []), "补强")
+        self.assertEqual(classify_material("OKT-PI3025(U)", "PI=3mil,AD=25um", catalog, []), "补强")
+
+    def test_classify_material_handles_known_legacy_coverlay_model(self):
+        catalog = {"0": "纯胶"}
+
+        self.assertEqual(classify_material("OKT-PI2045(F) W250*200M", "PI=2mil,AD=45um", catalog, []), "覆盖膜")
+
 
 if __name__ == "__main__":
     unittest.main()

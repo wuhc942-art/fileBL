@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from summarize_shipments import normalize_header, read_sheet_rows, sheet_paths
 import zipfile
@@ -14,6 +15,10 @@ DERIVED_CATEGORY_RULES = [
     ("补强", ["补强", "fr-4", "fr4", "钢片"]),
     ("基材", ["基材", "压延铜", "铜箔", "fccl", "单面", "双面"]),
     ("覆盖膜", ["覆盖膜", "保护膜", "cvl"]),
+]
+KNOWN_MODEL_OVERRIDES = [
+    ("OKT-PI2045(F)", "覆盖膜"),
+    ("OKT-2045(F)", "覆盖膜"),
 ]
 
 
@@ -39,6 +44,35 @@ def _normalize_category(category: str) -> str:
         if name in text:
             return name
     return text or "其他"
+
+
+def _compact(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "").strip()).upper()
+
+
+def _is_catalog_key(value: str) -> bool:
+    text = str(value or "").strip()
+    compact = _compact(text)
+    if compact.replace(".", "", 1).isdigit():
+        return False
+    if compact in {"NONE", "NULL", "其他"}:
+        return False
+    if re.search(r"[\u4e00-\u9fff]", text):
+        return len(text) >= 2
+    if len(compact) < 4:
+        return False
+    return True
+
+
+def _model_family(value: str) -> str:
+    compact = _compact(value)
+    match = re.search(r"[A-Z]{2,}-[A-Z]+[0-9]{3,}", compact)
+    if match:
+        return match.group(0)
+    short_kts = re.search(r"KTS-([0-9]{3,})", compact)
+    if short_kts:
+        return f"KTS-PI{short_kts.group(1)}"
+    return ""
 
 
 def derive_material_category(*values: str) -> str:
@@ -87,7 +121,7 @@ def load_material_catalog(path: Path | str) -> dict[str, str]:
             if category_idx is not None:
                 product = _cell(row, product_idx)
                 category = _normalize_category(_cell(row, category_idx))
-                if product and category:
+                if _is_catalog_key(product) and category:
                     catalog[product] = category
                 continue
             values = [_cell(row, idx) for idx in monthly_indexes]
@@ -95,17 +129,39 @@ def load_material_catalog(path: Path | str) -> dict[str, str]:
             if not category:
                 continue
             for value in values:
-                if value:
+                if _is_catalog_key(value):
                     catalog[value] = category
     return catalog
 
 
 def classify_material(model: str, spec: str, catalog: dict[str, str] | None, rules: list[dict]) -> str:
     text = f"{model or ''} {spec or ''}".lower()
-    for product, category in (catalog or {}).items():
+    compact_text = _compact(f"{model or ''} {spec or ''}")
+    for token, category in KNOWN_MODEL_OVERRIDES:
+        if token in compact_text:
+            return category
+    catalog_items = sorted(
+        (
+            (str(product or "").strip(), category)
+            for product, category in (catalog or {}).items()
+            if _is_catalog_key(str(product or ""))
+        ),
+        key=lambda item: len(_compact(item[0])),
+        reverse=True,
+    )
+    for product, category in catalog_items:
         product_text = str(product or "").strip().lower()
         if product_text and product_text in text:
             return _normalize_category(category)
+    family = _model_family(model)
+    if family:
+        family_matches = [
+            _normalize_category(category)
+            for product, category in catalog_items
+            if _compact(product).startswith(family)
+        ]
+        if family_matches:
+            return max(set(family_matches), key=family_matches.count)
     derived = derive_material_category(model, spec)
     if derived:
         return derived
