@@ -20,6 +20,7 @@ KNOWN_MODEL_OVERRIDES = [
     ("OKT-PI2045(F)", "覆盖膜"),
     ("OKT-2045(F)", "覆盖膜"),
 ]
+_CATALOG_INDEX_CACHE: dict[tuple[int, int], dict] = {}
 
 
 def _pick_column(headers: dict[str, int], candidates: list[str]) -> int | None:
@@ -55,10 +56,14 @@ def _is_catalog_key(value: str) -> bool:
     compact = _compact(text)
     if compact.replace(".", "", 1).isdigit():
         return False
+    if re.fullmatch(r"\d+(?:\.\d+)?(?:UM|MM|MIL|M|CM)", compact):
+        return False
     if compact in {"NONE", "NULL", "其他"}:
         return False
     if re.search(r"[\u4e00-\u9fff]", text):
         return len(text) >= 2
+    if re.search(r"\bPI\s*[=:]", text, re.IGNORECASE) and not derive_material_category(text):
+        return False
     if len(compact) < 4:
         return False
     return True
@@ -134,32 +139,47 @@ def load_material_catalog(path: Path | str) -> dict[str, str]:
     return catalog
 
 
+def _catalog_index(catalog: dict[str, str] | None) -> dict:
+    if not catalog:
+        return {"items": [], "family": {}}
+    cache_key = (id(catalog), len(catalog))
+    cached = _CATALOG_INDEX_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    items = sorted(
+        (
+            (str(product or "").strip(), _compact(product), _normalize_category(category))
+            for product, category in catalog.items()
+            if _is_catalog_key(str(product or ""))
+        ),
+        key=lambda item: len(item[1]),
+        reverse=True,
+    )
+    family: dict[str, list[str]] = {}
+    for _product, compact_product, category in items:
+        product_family = _model_family(compact_product)
+        if product_family:
+            family.setdefault(product_family, []).append(category)
+    index = {"items": items, "family": family}
+    _CATALOG_INDEX_CACHE.clear()
+    _CATALOG_INDEX_CACHE[cache_key] = index
+    return index
+
+
 def classify_material(model: str, spec: str, catalog: dict[str, str] | None, rules: list[dict]) -> str:
     text = f"{model or ''} {spec or ''}".lower()
     compact_text = _compact(f"{model or ''} {spec or ''}")
     for token, category in KNOWN_MODEL_OVERRIDES:
         if token in compact_text:
             return category
-    catalog_items = sorted(
-        (
-            (str(product or "").strip(), category)
-            for product, category in (catalog or {}).items()
-            if _is_catalog_key(str(product or ""))
-        ),
-        key=lambda item: len(_compact(item[0])),
-        reverse=True,
-    )
-    for product, category in catalog_items:
+    index = _catalog_index(catalog)
+    for product, _compact_product, category in index["items"]:
         product_text = str(product or "").strip().lower()
         if product_text and product_text in text:
-            return _normalize_category(category)
+            return category
     family = _model_family(model)
     if family:
-        family_matches = [
-            _normalize_category(category)
-            for product, category in catalog_items
-            if _compact(product).startswith(family)
-        ]
+        family_matches = index["family"].get(family, [])
         if family_matches:
             return max(set(family_matches), key=family_matches.count)
     derived = derive_material_category(model, spec)

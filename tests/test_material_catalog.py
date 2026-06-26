@@ -69,13 +69,25 @@ class MaterialCatalogTest(unittest.TestCase):
     def test_classify_material_ignores_generic_catalog_tokens_and_uses_model_family(self):
         catalog = {
             "0": "纯胶",
+            "PI=8mil,AD=25um": "纯胶",
+            "PI=5mil,AD=25um": "纯胶",
+            "PI=12mil,AD=25um": "纯胶",
+            "25um": "纯胶",
             "KTS-PI9000SXX1-222": "补强",
             "OKT-PI3025(U)": "补强",
+            "OKT-PI8025(U)": "补强",
+            "OKT-PI8000(A)": "补强",
+            "OKT-PI5025(U)": "补强",
+            "OKT-PI12025(U)-6": "补强",
         }
 
         self.assertEqual(classify_material("KTS-PI9000(U)", "PI=9mil", catalog, []), "补强")
         self.assertEqual(classify_material("KTS-9000(U)", "PI=9mil", catalog, []), "补强")
         self.assertEqual(classify_material("OKT-PI3025(U)", "PI=3mil,AD=25um", catalog, []), "补强")
+        self.assertEqual(classify_material("OKT-PI8025(S)", "PI=8mil,AD=25um", catalog, []), "补强")
+        self.assertEqual(classify_material("OKT-PI8000(S)", "PI=8mil", catalog, []), "补强")
+        self.assertEqual(classify_material("OKT-PI5025(S)", "PI=5mil,AD=25um", catalog, []), "补强")
+        self.assertEqual(classify_material("OKT-PI12025(S) W500", "PI=12mil,AD=25um", catalog, []), "补强")
 
     def test_classify_material_handles_known_legacy_coverlay_model(self):
         catalog = {"0": "纯胶"}
