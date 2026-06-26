@@ -398,6 +398,7 @@ function renderCustomerProfileOptions(payload) {
   if (!els.customerProfileList) return;
   const names = Array.from(new Set([
     ...(payload.customers || []).map((row) => row.customer).filter(Boolean),
+    ...Object.keys(payload.customerHistoryProfiles || {}),
     ...Object.keys(payload.customerHistoryDetails || {}),
   ]));
   els.customerProfileList.innerHTML = names
@@ -409,7 +410,7 @@ function findCustomerName(query) {
   if (!currentPayload) return "";
   const text = String(query || "").trim().toLowerCase();
   if (!text) return "";
-  const names = Object.keys(currentPayload.customerHistoryDetails || currentPayload.customerDetails || {});
+  const names = Object.keys(currentPayload.customerHistoryProfiles || currentPayload.customerHistoryDetails || currentPayload.customerDetails || {});
   return (
     names.find((name) => name.toLowerCase() === text) ||
     names.find((name) => name.toLowerCase().includes(text)) ||
@@ -454,7 +455,7 @@ function renderCustomerProfile(customerName = "") {
     return;
   }
   const rows = currentPayload.customerHistoryDetails?.[customer] || currentPayload.customerDetails?.[customer] || [];
-  const profile = window.buildCustomerProfile(rows);
+  const profile = currentPayload.customerHistoryProfiles?.[customer] || window.buildCustomerProfile(rows);
   els.customerProfileInput.value = customer;
   els.customerProfileResult.innerHTML = `
     <div class="profile-summary">

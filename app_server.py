@@ -164,7 +164,9 @@ def _build_payload_from_rows(rows: list[dict], target_date: dt.date, sources: li
         for row in rows
         if (parse_date(row.get(SHIP_DATE)) or dt.date.max) <= target_date
     ]
-    payload["customerHistoryDetails"] = _build_customer_details(_frontend_rows(history_rows))
+    history_frontend_rows = _frontend_rows(history_rows)
+    payload["customerHistoryProfiles"] = _build_customer_profiles(history_frontend_rows)
+    payload["customerHistoryDetails"] = {}
     return payload
 
 
@@ -623,6 +625,43 @@ def _build_customer_details(rows: list[dict]) -> dict[str, list[dict]]:
     for row in rows:
         customer_details.setdefault(row["customer"] or "未填写客户", []).append(row)
     return customer_details
+
+
+def _profile_breakdown(rows: list[dict], key: str) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    total_amount = sum(float(row.get("amount") or 0) for row in rows)
+    for row in rows:
+        name = str(row.get(key) or ("其他" if key == "materialCategory" else "未填写型号")).strip()
+        item = grouped.setdefault(name, {"name": name, "rows": 0, "quantity": 0.0, "amount": 0.0, "share": 0.0})
+        item["rows"] += 1
+        item["quantity"] += float(row.get("quantity") or 0)
+        item["amount"] += float(row.get("amount") or 0)
+    output = sorted(grouped.values(), key=lambda item: (item["amount"], item["quantity"], item["rows"]), reverse=True)
+    for item in output:
+        item["quantity"] = _round(item["quantity"])
+        item["amount"] = _round(item["amount"])
+        item["share"] = _round(item["amount"] / total_amount * 100) if total_amount else 0
+    return output
+
+
+def _build_customer_profiles(rows: list[dict]) -> dict[str, dict]:
+    by_customer = _build_customer_details(rows)
+    profiles: dict[str, dict] = {}
+    for customer, customer_rows in by_customer.items():
+        categories = _profile_breakdown(customer_rows, "materialCategory")
+        models = _profile_breakdown(customer_rows, "model")
+        profiles[customer] = {
+            "total": {
+                "rows": len(customer_rows),
+                "quantity": _round(sum(float(row.get("quantity") or 0) for row in customer_rows)),
+                "amount": _round(sum(float(row.get("amount") or 0) for row in customer_rows)),
+            },
+            "primaryCategory": categories[0] if categories else None,
+            "primaryModel": models[0] if models else None,
+            "categories": categories,
+            "models": models,
+        }
+    return profiles
 
 
 def _build_business_alerts(result: SummaryResult, reference_results: dict[str, SummaryResult] | None) -> dict:

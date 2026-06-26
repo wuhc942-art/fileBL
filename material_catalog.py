@@ -173,15 +173,15 @@ def classify_material(model: str, spec: str, catalog: dict[str, str] | None, rul
         if token in compact_text:
             return category
     index = _catalog_index(catalog)
-    for product, _compact_product, category in index["items"]:
-        product_text = str(product or "").strip().lower()
-        if product_text and product_text in text:
-            return category
     family = _model_family(model)
     if family:
         family_matches = index["family"].get(family, [])
         if family_matches:
             return max(set(family_matches), key=family_matches.count)
+    for product, _compact_product, category in index["items"]:
+        product_text = str(product or "").strip().lower()
+        if product_text and product_text in text:
+            return category
     derived = derive_material_category(model, spec)
     if derived:
         return derived

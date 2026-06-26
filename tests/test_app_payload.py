@@ -259,10 +259,12 @@ class DashboardPayloadTest(unittest.TestCase):
 
         payload = _build_payload_from_rows(rows, target_date, ["history.xlsx"])
 
-        history_rows = payload["customerHistoryDetails"]["固定客户"]
-        self.assertEqual(len(history_rows), 2)
-        self.assertEqual(history_rows[0]["materialCategory"], "纯胶")
-        self.assertEqual(history_rows[1]["materialCategory"], "补强")
+        history_profile = payload["customerHistoryProfiles"]["固定客户"]
+        self.assertEqual(history_profile["total"]["rows"], 2)
+        self.assertEqual(history_profile["primaryCategory"]["name"], "纯胶")
+        self.assertEqual(history_profile["categories"][0]["amount"], 300.0)
+        self.assertEqual(history_profile["categories"][1]["name"], "补强")
+        self.assertEqual(payload["customerHistoryDetails"], {})
         self.assertEqual(payload["customerDetails"]["固定客户"][0]["materialCategory"], "补强")
 
 
