@@ -23,6 +23,11 @@ KNOWN_MODEL_OVERRIDES = [
 _CATALOG_INDEX_CACHE: dict[tuple[int, int], dict] = {}
 
 
+def _is_okt_coverlay_model(value: str) -> bool:
+    compact = _compact(value)
+    return bool(re.search(r"OKT-PI\d{4,5}\((?:F|W|M)\)", compact))
+
+
 def _pick_column(headers: dict[str, int], candidates: list[str]) -> int | None:
     for candidate in candidates:
         idx = headers.get(normalize_header(candidate))
@@ -172,6 +177,8 @@ def classify_material(model: str, spec: str, catalog: dict[str, str] | None, rul
     for token, category in KNOWN_MODEL_OVERRIDES:
         if token in compact_text:
             return category
+    if _is_okt_coverlay_model(model):
+        return "覆盖膜"
     index = _catalog_index(catalog)
     family = _model_family(model)
     if family:

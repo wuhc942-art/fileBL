@@ -94,6 +94,18 @@ class MaterialCatalogTest(unittest.TestCase):
 
         self.assertEqual(classify_material("OKT-PI2045(F) W250*200M", "PI=2mil,AD=45um", catalog, []), "覆盖膜")
 
+    def test_classify_material_treats_okt_fwm_roll_models_as_coverlay(self):
+        catalog = {
+            "OKT-PI2050(F)方舟PI-补强胶-黄纸-未电晕 W250": "补强",
+            "OKT-PI1045(W)": "补强",
+            "OKT-PI2025(U)": "补强",
+        }
+
+        self.assertEqual(classify_material("OKT-PI2050(F) W250*200M", "PI=2mil,AD=50um", catalog, []), "覆盖膜")
+        self.assertEqual(classify_material("OKT-PI1045(W) W250*200M", "PI=1mil,AD=45um", catalog, []), "覆盖膜")
+        self.assertEqual(classify_material("OKT-PI2025(M) W250*200M", "PI=2mil,AD=25um", catalog, []), "覆盖膜")
+        self.assertEqual(classify_material("OKT-PI8025(S)", "PI=8mil,AD=25um", catalog, []), "其他")
+
 
 if __name__ == "__main__":
     unittest.main()

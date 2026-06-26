@@ -63,6 +63,7 @@ DEFAULT_MATERIAL_CATEGORIES = [
 MATERIAL_CATEGORIES = APP_CONFIG.get("material_categories") or DEFAULT_MATERIAL_CATEGORIES
 MATERIAL_CATALOG_PATH = Path(os.environ.get("SHIPMENT_MATERIAL_CATALOG") or "").resolve() if os.environ.get("SHIPMENT_MATERIAL_CATALOG") else None
 MATERIAL_CATALOG = load_material_catalog(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH and MATERIAL_CATALOG_PATH.exists() else {}
+MATERIAL_CLASSIFICATION_CACHE: dict[tuple[str, str], str] = {}
 
 
 def _round(value: float) -> float:
@@ -70,13 +71,19 @@ def _round(value: float) -> float:
 
 
 def _classify_material_category(model: str, spec: str = "") -> str:
-    return classify_material(model, spec, MATERIAL_CATALOG, MATERIAL_CATEGORIES)
+    key = (str(model or ""), str(spec or ""))
+    category = MATERIAL_CLASSIFICATION_CACHE.get(key)
+    if category is None:
+        category = classify_material(model, spec, MATERIAL_CATALOG, MATERIAL_CATEGORIES)
+        MATERIAL_CLASSIFICATION_CACHE[key] = category
+    return category
 
 
 def configure_material_catalog(path: Path | str | None) -> dict:
     global MATERIAL_CATALOG_PATH, MATERIAL_CATALOG
     MATERIAL_CATALOG_PATH = Path(path).resolve() if path else None
     MATERIAL_CATALOG = load_material_catalog(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH and MATERIAL_CATALOG_PATH.exists() else {}
+    MATERIAL_CLASSIFICATION_CACHE.clear()
     return {
         "materialCatalogPath": str(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH else "",
         "materialCatalogRows": len(MATERIAL_CATALOG),
