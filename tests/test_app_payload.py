@@ -264,8 +264,54 @@ class DashboardPayloadTest(unittest.TestCase):
         self.assertEqual(history_profile["primaryCategory"]["name"], "纯胶")
         self.assertEqual(history_profile["categories"][0]["amount"], 300.0)
         self.assertEqual(history_profile["categories"][1]["name"], "补强")
+        model_profile = payload["modelHistoryProfiles"]["纯胶膜"]
+        self.assertEqual(model_profile["total"]["rows"], 1)
+        self.assertEqual(model_profile["primaryCustomer"]["name"], "固定客户")
+        self.assertEqual(model_profile["primaryCategory"]["name"], "纯胶")
         self.assertEqual(payload["customerHistoryDetails"], {})
         self.assertEqual(payload["customerDetails"]["固定客户"][0]["materialCategory"], "补强")
+
+    def test_model_profiles_merge_case_only_model_variants(self):
+        target_date = dt.date(2026, 6, 24)
+        rows = [
+            {
+                "来源文件": "history.xlsx",
+                "送货日期": target_date,
+                "客户": "客户A",
+                "型号/品名": "OKT-PI4025(U) 1mil面背胶",
+                "规格": "",
+                "单位": "㎡",
+                "数量": 10.0,
+                "单价": 10.0,
+                "金额": 100.0,
+                "送货单号": "A1",
+                "订单号": "O1",
+            },
+            {
+                "来源文件": "history.xlsx",
+                "送货日期": target_date,
+                "客户": "客户B",
+                "型号/品名": "OKT-PI4025(U) 1MIL面背胶",
+                "规格": "",
+                "单位": "㎡",
+                "数量": 20.0,
+                "单价": 10.0,
+                "金额": 200.0,
+                "送货单号": "B1",
+                "订单号": "O2",
+            },
+        ]
+
+        payload = _build_payload_from_rows(rows, target_date, [])
+
+        profiles = payload["modelHistoryProfiles"]
+        self.assertEqual(len([name for name in profiles if name.upper() == "OKT-PI4025(U) 1MIL面背胶"]), 1)
+        profile = next(item for name, item in profiles.items() if name.upper() == "OKT-PI4025(U) 1MIL面背胶")
+        self.assertEqual(profile["total"]["rows"], 2)
+        self.assertEqual(profile["total"]["amount"], 300.0)
+        self.assertEqual(profile["primaryCustomer"]["name"], "客户B")
+        customer_profile = payload["customerHistoryProfiles"]["客户A"]
+        self.assertEqual(customer_profile["primaryModel"]["amount"], 100.0)
 
 
     def test_build_dashboard_payload_includes_business_speed_metrics(self):

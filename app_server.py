@@ -176,6 +176,7 @@ def _build_payload_from_rows(rows: list[dict], target_date: dt.date, sources: li
     ]
     history_frontend_rows = _frontend_rows(history_rows)
     payload["customerHistoryProfiles"] = _build_customer_profiles(history_frontend_rows)
+    payload["modelHistoryProfiles"] = _build_model_profiles(history_frontend_rows)
     payload["customerHistoryDetails"] = {}
     return payload
 
@@ -637,12 +638,27 @@ def _build_customer_details(rows: list[dict]) -> dict[str, list[dict]]:
     return customer_details
 
 
+def _profile_group_name(row: dict, key: str) -> str:
+    fallback = "其他" if key == "materialCategory" else "未填写型号"
+    return str(row.get(key) or fallback).strip() or fallback
+
+
+def _profile_group_key(name: str, key: str) -> str:
+    if key == "model":
+        return name.upper()
+    return name
+
+
 def _profile_breakdown(rows: list[dict], key: str) -> list[dict]:
     grouped: dict[str, dict] = {}
     total_amount = sum(float(row.get("amount") or 0) for row in rows)
     for row in rows:
-        name = str(row.get(key) or ("其他" if key == "materialCategory" else "未填写型号")).strip()
-        item = grouped.setdefault(name, {"name": name, "rows": 0, "quantity": 0.0, "amount": 0.0, "share": 0.0})
+        name = _profile_group_name(row, key)
+        group_key = _profile_group_key(name, key)
+        item = grouped.setdefault(
+            group_key,
+            {"name": name, "rows": 0, "quantity": 0.0, "amount": 0.0, "share": 0.0},
+        )
         item["rows"] += 1
         item["quantity"] += float(row.get("quantity") or 0)
         item["amount"] += float(row.get("amount") or 0)
@@ -670,6 +686,31 @@ def _build_customer_profiles(rows: list[dict]) -> dict[str, dict]:
             "primaryModel": models[0] if models else None,
             "categories": categories,
             "models": models,
+        }
+    return profiles
+
+
+def _build_model_profiles(rows: list[dict]) -> dict[str, dict]:
+    by_model: dict[str, list[dict]] = {}
+    for row in rows:
+        model = _profile_group_name(row, "model")
+        by_model.setdefault(_profile_group_key(model, "model"), []).append(row)
+    profiles: dict[str, dict] = {}
+    for model_rows in by_model.values():
+        model_names = _profile_breakdown(model_rows, "model")
+        model = model_names[0]["name"] if model_names else "未填写型号"
+        customers = _profile_breakdown(model_rows, "customer")
+        categories = _profile_breakdown(model_rows, "materialCategory")
+        profiles[model] = {
+            "total": {
+                "rows": len(model_rows),
+                "quantity": _round(sum(float(row.get("quantity") or 0) for row in model_rows)),
+                "amount": _round(sum(float(row.get("amount") or 0) for row in model_rows)),
+            },
+            "primaryCustomer": customers[0] if customers else None,
+            "primaryCategory": categories[0] if categories else None,
+            "customers": customers,
+            "categories": categories,
         }
     return profiles
 

@@ -413,6 +413,41 @@ h3 {
   background: var(--surface);
 }
 
+.lookup-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 12px 16px 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #eef5f6;
+}
+
+.lookup-tab {
+  min-width: 92px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.lookup-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.lookup-pane {
+  display: none;
+}
+
+.lookup-pane.active {
+  display: block;
+}
+
 .customer-profile-tools {
   display: grid;
   grid-template-columns: minmax(240px, 420px) auto;

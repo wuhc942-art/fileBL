@@ -23,6 +23,7 @@
           <div class="drop-actions">
             <button id="dataDirBtn" class="button secondary" type="button">数据目录</button>
             <button id="materialCatalogBtn" class="button secondary" type="button">材料类型表</button>
+            <button id="customerLookupTopBtn" class="button secondary" type="button">客户反查</button>
             <button id="backupBtn" class="button secondary" type="button">备份</button>
             <button id="restoreBtn" class="button secondary" type="button">恢复</button>
           </div>
@@ -111,30 +112,49 @@
         <div id="comparisonGrid" class="comparison-grid"></div>
       </section>
 
+      <section id="customerLookupPanel" class="customer-profile-panel">
+        <div class="table-head">
+          <h3>反查分析</h3>
+          <span>按客户看主发型号，或按型号看发货客户</span>
+        </div>
+        <div class="lookup-tabs" role="tablist" aria-label="反查方式">
+          <button id="customerLookupTab" class="lookup-tab active" type="button" data-lookup-tab="customer">按客户查</button>
+          <button id="modelLookupTab" class="lookup-tab" type="button" data-lookup-tab="model">按型号查</button>
+        </div>
+        <div id="customerLookupPane" class="lookup-pane active">
+          <div class="customer-profile-tools">
+            <label>
+              <span>客户名称</span>
+              <input id="customerProfileInput" type="search" list="customerProfileList" placeholder="输入或选择客户">
+            </label>
+            <datalist id="customerProfileList"></datalist>
+            <button id="customerProfileBtn" class="button primary" type="button">查询客户</button>
+          </div>
+          <div id="customerProfileResult" class="customer-profile-result">
+            <p class="empty-chart">输入客户名称后，会自动总结主发大类和主发型号。</p>
+          </div>
+        </div>
+        <div id="modelLookupPane" class="lookup-pane">
+          <div class="customer-profile-tools">
+            <label>
+              <span>型号/品名</span>
+              <input id="modelLookupInput" type="search" list="modelLookupList" placeholder="输入或选择型号">
+            </label>
+            <datalist id="modelLookupList"></datalist>
+            <button id="modelLookupBtn" class="button primary" type="button">查询型号</button>
+          </div>
+          <div id="modelLookupResult" class="customer-profile-result">
+            <p class="empty-chart">输入型号后，会自动反查历史至今哪些客户发过。</p>
+          </div>
+        </div>
+      </section>
+
       <section class="business-panel">
         <div class="table-head">
           <h3>业务提醒</h3>
           <span>大客户、新客户、沉默客户</span>
         </div>
         <div id="businessAlertGrid" class="business-alert-grid"></div>
-      </section>
-
-      <section class="customer-profile-panel">
-        <div class="table-head">
-          <h3>客户材料画像</h3>
-          <span>查询客户主要发哪些材料大类和型号，默认按金额判断主发项</span>
-        </div>
-        <div class="customer-profile-tools">
-          <label>
-            <span>客户名称</span>
-            <input id="customerProfileInput" type="search" list="customerProfileList" placeholder="输入或选择客户">
-          </label>
-          <datalist id="customerProfileList"></datalist>
-          <button id="customerProfileBtn" class="button primary" type="button">查询</button>
-        </div>
-        <div id="customerProfileResult" class="customer-profile-result">
-          <p class="empty-chart">输入客户名称后，会自动总结主发大类和主发型号。</p>
-        </div>
       </section>
 
       <section class="amount-structure-panel">

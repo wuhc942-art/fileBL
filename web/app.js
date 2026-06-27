@@ -59,12 +59,31 @@ const els = {
   backupBtn: document.querySelector("#backupBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
   materialCatalogBtn: document.querySelector("#materialCatalogBtn"),
+  customerLookupTopBtn: document.querySelector("#customerLookupTopBtn"),
+  customerLookupPanel: document.querySelector("#customerLookupPanel"),
+  lookupTabs: document.querySelectorAll("[data-lookup-tab]"),
+  customerLookupPane: document.querySelector("#customerLookupPane"),
+  modelLookupPane: document.querySelector("#modelLookupPane"),
   customerProfileInput: document.querySelector("#customerProfileInput"),
   customerProfileList: document.querySelector("#customerProfileList"),
   customerProfileBtn: document.querySelector("#customerProfileBtn"),
   customerProfileResult: document.querySelector("#customerProfileResult"),
+  modelLookupInput: document.querySelector("#modelLookupInput"),
+  modelLookupList: document.querySelector("#modelLookupList"),
+  modelLookupBtn: document.querySelector("#modelLookupBtn"),
+  modelLookupResult: document.querySelector("#modelLookupResult"),
   appVersion: document.querySelector("#appVersion"),
 };
+
+function setLookupMode(mode) {
+  const isModel = mode === "model";
+  els.lookupTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.lookupTab === mode);
+  });
+  els.customerLookupPane?.classList.toggle("active", !isModel);
+  els.modelLookupPane?.classList.toggle("active", isModel);
+  window.setTimeout(() => (isModel ? els.modelLookupInput : els.customerProfileInput)?.focus(), 80);
+}
 
 let selectedFiles = [];
 let currentPayload = null;
@@ -404,6 +423,20 @@ function renderCustomerProfileOptions(payload) {
   els.customerProfileList.innerHTML = names
     .map((name) => `<option value="${escapeHtml(name)}"></option>`)
     .join("");
+  const modelMap = new Map();
+  [
+    ...(payload.rows || []).map((row) => row.model).filter(Boolean),
+    ...Object.keys(payload.modelHistoryProfiles || {}),
+  ].forEach((name) => {
+    const key = String(name).trim().toLowerCase();
+    if (key && !modelMap.has(key)) modelMap.set(key, String(name).trim());
+  });
+  const models = Array.from(modelMap.values());
+  if (els.modelLookupList) {
+    els.modelLookupList.innerHTML = models
+      .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+      .join("");
+  }
 }
 
 function findCustomerName(query) {
@@ -411,6 +444,18 @@ function findCustomerName(query) {
   const text = String(query || "").trim().toLowerCase();
   if (!text) return "";
   const names = Object.keys(currentPayload.customerHistoryProfiles || currentPayload.customerHistoryDetails || currentPayload.customerDetails || {});
+  return (
+    names.find((name) => name.toLowerCase() === text) ||
+    names.find((name) => name.toLowerCase().includes(text)) ||
+    ""
+  );
+}
+
+function findModelName(query) {
+  if (!currentPayload) return "";
+  const text = String(query || "").trim().toLowerCase();
+  if (!text) return "";
+  const names = Object.keys(currentPayload.modelHistoryProfiles || {});
   return (
     names.find((name) => name.toLowerCase() === text) ||
     names.find((name) => name.toLowerCase().includes(text)) ||
@@ -488,6 +533,64 @@ function renderCustomerProfile(customerName = "") {
       <section>
         <h4>常发型号</h4>
         ${renderProfileTopList(profile.models, "暂无型号数据。")}
+      </section>
+    </div>
+  `;
+}
+
+function modelLookupSummaryText(model, profile) {
+  const customer = profile.primaryCustomer?.name || "暂无";
+  const customerShare = profile.primaryCustomer ? `${formatNumber(profile.primaryCustomer.share)}%` : "0%";
+  const category = profile.primaryCategory?.name || "暂无";
+  const categoryShare = profile.primaryCategory ? `${formatNumber(profile.primaryCategory.share)}%` : "0%";
+  return `${model} 主要发给 ${customer}，金额占比 ${customerShare}；主材料大类 ${category}，金额占比 ${categoryShare}。`;
+}
+
+function renderModelLookup(modelName = "") {
+  if (!els.modelLookupResult) return;
+  if (!currentPayload) {
+    els.modelLookupResult.innerHTML = `<p class="empty-chart">导入 Excel 或读取历史库后，可以按型号反查客户。</p>`;
+    return;
+  }
+  const query = modelName || els.modelLookupInput.value;
+  const model = findModelName(query);
+  if (!model) {
+    els.modelLookupResult.innerHTML = `<p class="empty-chart">输入型号后，会自动反查历史至今哪些客户发过。</p>`;
+    return;
+  }
+  const profile = currentPayload.modelHistoryProfiles?.[model];
+  els.modelLookupInput.value = model;
+  els.modelLookupResult.innerHTML = `
+    <div class="profile-summary">
+      <article>
+        <span>型号</span>
+        <strong>${escapeHtml(model)}</strong>
+      </article>
+      <article>
+        <span>主要客户</span>
+        <strong>${escapeHtml(profile.primaryCustomer?.name || "暂无")}</strong>
+        <em>${profile.primaryCustomer ? `${formatNumber(profile.primaryCustomer.share)}% · ${formatMoney(profile.primaryCustomer.amount)}` : "无金额"}</em>
+      </article>
+      <article>
+        <span>材料大类</span>
+        <strong>${escapeHtml(profile.primaryCategory?.name || "暂无")}</strong>
+        <em>${profile.primaryCategory ? `${formatNumber(profile.primaryCategory.share)}% · ${formatMoney(profile.primaryCategory.amount)}` : "无金额"}</em>
+      </article>
+      <article>
+        <span>合计</span>
+        <strong>${formatMoney(profile.total.amount)}</strong>
+        <em>${formatNumber(profile.total.quantity)} / ${formatNumber(profile.total.rows)} 笔</em>
+      </article>
+    </div>
+    <p class="profile-conclusion">${escapeHtml(`${modelLookupSummaryText(model, profile)} 统计口径：历史至今。`)}</p>
+    <div class="profile-breakdowns">
+      <section>
+        <h4>发货客户</h4>
+        ${renderProfileTopList(profile.customers, "暂无客户数据。")}
+      </section>
+      <section>
+        <h4>材料大类</h4>
+        ${renderProfileTopList(profile.categories, "暂无材料大类数据。")}
       </section>
     </div>
   `;
@@ -952,6 +1055,16 @@ els.materialCatalogBtn.addEventListener("click", () => {
   chooseMaterialCatalogFile();
 });
 
+els.customerLookupTopBtn.addEventListener("click", () => {
+  setLookupMode("customer");
+  els.customerLookupPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => els.customerProfileInput?.focus(), 250);
+});
+
+els.lookupTabs.forEach((button) => {
+  button.addEventListener("click", () => setLookupMode(button.dataset.lookupTab));
+});
+
 els.backupBtn.addEventListener("click", () => {
   createBackup();
 });
@@ -1053,18 +1166,39 @@ els.businessAlertGrid.addEventListener("click", (event) => {
 });
 
 els.customerProfileBtn.addEventListener("click", () => {
+  setLookupMode("customer");
   renderCustomerProfile();
 });
 
 els.customerProfileInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
+    setLookupMode("customer");
     renderCustomerProfile();
   }
 });
 
 els.customerProfileInput.addEventListener("change", () => {
+  setLookupMode("customer");
   renderCustomerProfile();
+});
+
+els.modelLookupBtn.addEventListener("click", () => {
+  setLookupMode("model");
+  renderModelLookup();
+});
+
+els.modelLookupInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    setLookupMode("model");
+    renderModelLookup();
+  }
+});
+
+els.modelLookupInput.addEventListener("change", () => {
+  setLookupMode("model");
+  renderModelLookup();
 });
 
 els.drawerRows.addEventListener("click", (event) => {
