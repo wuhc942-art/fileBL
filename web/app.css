@@ -399,6 +399,12 @@ h3 {
   color: #fff;
 }
 
+.template-summary {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .comparison-panel,
 .business-panel,
 .customer-profile-panel,
@@ -685,21 +691,9 @@ h3 {
   grid-column: 1 / -1;
 }
 
-.results[data-template="boss"] .file-check-panel,
-.results[data-template="boss"] .rule-panel,
-.results[data-template="boss"] .table-block {
-  display: none;
-}
-
-.results[data-template="finance"] .business-panel,
-.results[data-template="finance"] .rule-panel {
-  display: none;
-}
-
-.results[data-template="warehouse"] .business-panel,
-.results[data-template="warehouse"] .amount-structure-panel,
-.results[data-template="warehouse"] .file-check-panel,
-.results[data-template="warehouse"] .rule-panel {
+.results[data-template="boss"] .module:not(.module-common):not(.module-boss),
+.results[data-template="finance"] .module:not(.module-common):not(.module-finance),
+.results[data-template="warehouse"] .module:not(.module-common):not(.module-warehouse) {
   display: none;
 }
 

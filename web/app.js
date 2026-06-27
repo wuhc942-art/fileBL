@@ -48,6 +48,7 @@ const els = {
   downloadCsvBtn: document.querySelector("#downloadCsvBtn"),
   downloadJsonBtn: document.querySelector("#downloadJsonBtn"),
   templateButtons: document.querySelectorAll(".template-button"),
+  templateSummary: document.querySelector("#templateSummary"),
   importCheckPanel: document.querySelector("#importCheckPanel"),
   importCheckSummary: document.querySelector("#importCheckSummary"),
   importSummaryCards: document.querySelector("#importSummaryCards"),
@@ -93,6 +94,12 @@ let viewState = {
   sortKey: "amount",
   sortDirection: "desc",
   template: "boss",
+};
+
+const templateSummaries = {
+  boss: "总览版：看今日经营变化、客户材料画像、业务提醒和客户金额排行。",
+  finance: "对账版：看金额结构、来源文件占比和客户汇总，用来核对金额。",
+  warehouse: "发货版：看导入检查、异常提醒、型号排行、材料大类和发货明细。",
 };
 
 function todayIso() {
@@ -651,6 +658,9 @@ function applyTemplate(template) {
     button.classList.toggle("active", button.dataset.template === viewState.template);
   });
   els.results.dataset.template = viewState.template;
+  if (els.templateSummary) {
+    els.templateSummary.textContent = templateSummaries[viewState.template] || templateSummaries.boss;
+  }
 }
 
 function renderStructure(container, rows) {

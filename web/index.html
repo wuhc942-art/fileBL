@@ -84,8 +84,9 @@
         <button class="template-button" type="button" data-template="finance">对账版</button>
         <button class="template-button" type="button" data-template="warehouse">发货版</button>
       </div>
+      <p id="templateSummary" class="template-summary">总览版：看今日经营变化、客户材料画像、业务提醒和客户金额排行。</p>
 
-      <div class="kpis">
+      <div class="kpis module module-common">
         <article class="kpi">
           <span>发货笔数</span>
           <strong id="kpiRows">0</strong>
@@ -104,7 +105,7 @@
         </article>
       </div>
 
-      <section class="comparison-panel">
+      <section class="comparison-panel module module-boss">
         <div class="table-head">
           <h3>变化对比</h3>
           <span>今天 vs 昨天 / 上周同日</span>
@@ -112,7 +113,7 @@
         <div id="comparisonGrid" class="comparison-grid"></div>
       </section>
 
-      <section id="customerLookupPanel" class="customer-profile-panel">
+      <section id="customerLookupPanel" class="customer-profile-panel module module-boss">
         <div class="table-head">
           <h3>反查分析</h3>
           <span>按客户看主发型号，或按型号看发货客户</span>
@@ -149,7 +150,7 @@
         </div>
       </section>
 
-      <section class="business-panel">
+      <section class="business-panel module module-boss">
         <div class="table-head">
           <h3>业务提醒</h3>
           <span>大客户、新客户、沉默客户</span>
@@ -157,7 +158,7 @@
         <div id="businessAlertGrid" class="business-alert-grid"></div>
       </section>
 
-      <section class="amount-structure-panel">
+      <section class="amount-structure-panel module module-finance">
         <div class="table-head">
           <h3>金额结构</h3>
           <span>按含税/现金和公司来源拆分</span>
@@ -174,7 +175,7 @@
         </div>
       </section>
 
-      <section id="insightPanel" class="insight-panel" hidden>
+      <section id="insightPanel" class="insight-panel module module-boss" hidden>
         <div class="table-head">
           <h3>自动结论</h3>
           <span>按当前日期和上传文件生成</span>
@@ -182,7 +183,7 @@
         <ul id="insightList" class="insight-list"></ul>
       </section>
 
-      <section id="fileCheckPanel" class="file-check-panel" hidden>
+      <section id="fileCheckPanel" class="file-check-panel module module-warehouse" hidden>
         <div class="table-head">
           <h3>文件检查</h3>
           <span id="fileCheckSummary"></span>
@@ -190,7 +191,7 @@
         <div id="fileCheckList" class="file-check-list"></div>
       </section>
 
-      <section id="importCheckPanel" class="file-check-panel" hidden>
+      <section id="importCheckPanel" class="file-check-panel module module-warehouse" hidden>
         <div class="table-head">
           <h3>导入检查</h3>
           <span id="importCheckSummary"></span>
@@ -199,7 +200,7 @@
         <div id="importCheckList" class="import-check-list"></div>
       </section>
 
-      <section id="anomalyPanel" class="anomaly-panel" hidden>
+      <section id="anomalyPanel" class="anomaly-panel module module-warehouse" hidden>
         <div class="table-head">
           <h3>异常提醒</h3>
           <span id="anomalySummary"></span>
@@ -208,7 +209,7 @@
         <div id="anomalyReviewList" class="anomaly-review-list"></div>
       </section>
 
-      <section class="rule-panel">
+      <section class="rule-panel module module-warehouse">
         <div class="table-head">
           <h3>规则中心</h3>
           <span>型号识别和客户/型号别名来自 shipment_config.json</span>
@@ -217,28 +218,28 @@
       </section>
 
       <div class="chart-grid">
-        <article class="chart-block">
+        <article class="chart-block module module-boss">
           <div class="chart-title">
             <h3>客户金额排行</h3>
             <span>按金额从高到低</span>
           </div>
           <div id="customerChart" class="bar-chart"></div>
         </article>
-        <article class="chart-block">
+        <article class="chart-block module module-warehouse">
           <div class="chart-title">
             <h3>型号金额排行</h3>
             <span>同型号自动合并</span>
           </div>
           <div id="modelChart" class="bar-chart"></div>
         </article>
-        <article class="chart-block source-block">
+        <article class="chart-block source-block module module-finance">
           <div class="chart-title">
             <h3>来源文件占比</h3>
             <span>查看各文件贡献</span>
           </div>
           <div id="sourceChart" class="bar-chart"></div>
         </article>
-        <article class="chart-block source-block">
+        <article class="chart-block source-block module module-warehouse">
           <div class="chart-title">
             <h3>材料大类金额占比</h3>
             <span>补强 / 覆盖膜 / 基材</span>
@@ -247,7 +248,7 @@
         </article>
       </div>
 
-      <section class="table-block">
+      <section class="table-block module module-finance">
         <div class="table-head">
           <h3>客户汇总</h3>
           <span id="customerSummaryCount"></span>
@@ -269,7 +270,7 @@
         </div>
       </section>
 
-      <section class="table-block">
+      <section class="table-block module module-warehouse">
         <div class="table-head">
           <h3>发货明细</h3>
           <span id="detailCount"></span>
