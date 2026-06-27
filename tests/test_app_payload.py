@@ -142,8 +142,8 @@ class DashboardPayloadTest(unittest.TestCase):
                 {
                     "来源文件": "a.xlsx",
                     "客户": "客户A",
-                    "型号/品名": "覆盖膜 / AU-25KA",
-                    "规格": "W500",
+                    "型号/品名": "PFEKE 1025PT",
+                    "规格": "PI=25um AD=25um",
                     "单位": "卷",
                     "数量": 1.0,
                     "单价": 200.0,

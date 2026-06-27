@@ -28,6 +28,33 @@ def _is_okt_coverlay_model(value: str) -> bool:
     return bool(re.search(r"OKT-PI\d{4,5}\((?:F|W|M)\)", compact))
 
 
+def _known_family_category(model: str, spec: str = "") -> str:
+    compact_model = _compact(model)
+    compact_text = _compact(f"{model or ''} {spec or ''}")
+    text = f"{model or ''} {spec or ''}".lower()
+    if re.search(r"AU-\d+KA", compact_model):
+        return "纯胶"
+    if any(token in compact_text for token in ["PFEK", "PFG", "PFKK"]) or re.search(r"C\d+KE", compact_model):
+        return "覆盖膜"
+    if re.search(r"CJAW-?\d+/\d+KA", compact_model):
+        return "覆盖膜"
+    if "盖膜" in model or "盖膜" in spec:
+        return "覆盖膜"
+    if any(token in text for token in ["软性覆铜板", "电解铜", "覆铜板", "铜箔"]):
+        return "基材"
+    if re.search(r"(?:KEF|RTA)-", compact_model) or compact_model.startswith("RTA"):
+        return "基材"
+    if re.search(r"(?:OKT|KTS)-PI\d{4,5}", compact_model):
+        return "补强"
+    if re.search(r"(?:FNUT|FNUW)\d{4}", compact_model):
+        return "补强"
+    if compact_model.startswith("UPILEX") or re.search(r"(?:GF|GD)\d{3}", compact_model) or "IK70" in compact_text:
+        return "补强"
+    if "PI膜" in model or "聚酰亚胺薄膜" in model:
+        return "补强"
+    return ""
+
+
 def _pick_column(headers: dict[str, int], candidates: list[str]) -> int | None:
     for candidate in candidates:
         idx = headers.get(normalize_header(candidate))
@@ -189,6 +216,9 @@ def classify_material(model: str, spec: str, catalog: dict[str, str] | None, rul
         product_text = str(product or "").strip().lower()
         if product_text and product_text in text:
             return category
+    known_category = _known_family_category(model, spec)
+    if known_category:
+        return known_category
     derived = derive_material_category(model, spec)
     if derived:
         return derived

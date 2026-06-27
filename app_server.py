@@ -15,6 +15,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from app_settings import load_settings
 from history_store import load_history_rows, save_history_rows
 from material_catalog import classify_material, load_material_catalog
 from summarize_shipments import (
@@ -45,8 +46,9 @@ def _app_root() -> Path:
 
 
 ROOT = _app_root()
+APP_SETTINGS = load_settings(ROOT)
 STATIC_DIR = ROOT / "web"
-STORAGE_ROOT = Path(os.environ.get("SHIPMENT_DATA_ROOT") or ROOT).resolve()
+STORAGE_ROOT = Path(os.environ.get("SHIPMENT_DATA_ROOT") or APP_SETTINGS.get("dataDir") or ROOT).resolve()
 UPLOAD_DIR = STORAGE_ROOT / "uploads"
 REPORT_DIR = STORAGE_ROOT / "reports"
 DATA_DIR = STORAGE_ROOT / "data"
@@ -61,7 +63,8 @@ DEFAULT_MATERIAL_CATEGORIES = [
     {"name": "基材", "keywords": ["基材", "铜箔", "FCCL", "PI基材"]},
 ]
 MATERIAL_CATEGORIES = APP_CONFIG.get("material_categories") or DEFAULT_MATERIAL_CATEGORIES
-MATERIAL_CATALOG_PATH = Path(os.environ.get("SHIPMENT_MATERIAL_CATALOG") or "").resolve() if os.environ.get("SHIPMENT_MATERIAL_CATALOG") else None
+_configured_material_catalog = os.environ.get("SHIPMENT_MATERIAL_CATALOG") or APP_SETTINGS.get("materialCatalogPath") or ""
+MATERIAL_CATALOG_PATH = Path(_configured_material_catalog).resolve() if _configured_material_catalog else None
 MATERIAL_CATALOG = load_material_catalog(MATERIAL_CATALOG_PATH) if MATERIAL_CATALOG_PATH and MATERIAL_CATALOG_PATH.exists() else {}
 MATERIAL_CLASSIFICATION_CACHE: dict[tuple[str, str], str] = {}
 

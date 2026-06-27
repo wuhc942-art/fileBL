@@ -104,7 +104,25 @@ class MaterialCatalogTest(unittest.TestCase):
         self.assertEqual(classify_material("OKT-PI2050(F) W250*200M", "PI=2mil,AD=50um", catalog, []), "覆盖膜")
         self.assertEqual(classify_material("OKT-PI1045(W) W250*200M", "PI=1mil,AD=45um", catalog, []), "覆盖膜")
         self.assertEqual(classify_material("OKT-PI2025(M) W250*200M", "PI=2mil,AD=25um", catalog, []), "覆盖膜")
-        self.assertEqual(classify_material("OKT-PI8025(S)", "PI=8mil,AD=25um", catalog, []), "其他")
+        self.assertEqual(classify_material("OKT-PI8025(S)", "PI=8mil,AD=25um", catalog, []), "补强")
+
+    def test_classify_material_handles_common_real_world_model_families(self):
+        self.assertEqual(classify_material("PFEKE 1025PT", "PI=25um AD=25um", {}, []), "覆盖膜")
+        self.assertEqual(classify_material("生产耗材 薄膜 27.5μm PFEKE 0515PT 100 m 250 mm", "", {}, []), "覆盖膜")
+        self.assertEqual(classify_material("PFGKE 0515PT", "PI=12.5um AD=15um", {}, []), "覆盖膜")
+        self.assertEqual(classify_material("PFEKN 0506PT", "PI=12.5um AD=6um", {}, []), "覆盖膜")
+        self.assertEqual(classify_material("代工PET环氧盖膜", "PET=50um,Ad=30um", {}, []), "覆盖膜")
+        self.assertEqual(classify_material("CJAW1025/25KA", "500mm*100m", {}, []), "覆盖膜")
+        self.assertEqual(classify_material("AU-25KA   1.02.01.0045", "250mm*200M", {}, []), "纯胶")
+        self.assertEqual(classify_material("OKT-PI4000(U)", "PI=4mil", {}, []), "补强")
+        self.assertEqual(classify_material("FNUT8025", "PI=8mil", {}, []), "补强")
+        self.assertEqual(classify_material("UPILEX-125S W514", "PI=5mil", {}, []), "补强")
+        self.assertEqual(classify_material("GF300", "W514", {}, []), "补强")
+        self.assertEqual(classify_material("GD100A", "PI=1mil", {}, []), "补强")
+        self.assertEqual(classify_material("IK70 25um", "W514", {}, []), "补强")
+        self.assertEqual(classify_material("软性覆铜板", "IF-2LD2512CR1", {}, []), "基材")
+        self.assertEqual(classify_material("KEF-SHJ131218D1", "半对半黑化电解铜", {}, []), "基材")
+        self.assertEqual(classify_material("RTA M25PE", "W256*110M", {}, []), "基材")
 
 
 if __name__ == "__main__":
