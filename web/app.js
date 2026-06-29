@@ -478,19 +478,35 @@ function customerProfileSummaryText(customer, profile) {
   return `${customer} 主发 ${category}，金额占比 ${categoryShare}；主发型号 ${model}，金额占比 ${modelShare}。`;
 }
 
-function renderProfileTopList(items, emptyText) {
+function renderProfileTopList(items, emptyText, options = {}) {
   if (!items.length) return `<p class="empty-chart">${escapeHtml(emptyText)}</p>`;
+  const limit = options.limit ?? 6;
+  const visibleItems = limit ? items.slice(0, limit) : items;
+  const linkKind = options.linkKind || "";
   return `
-    <div class="profile-list">
-      ${items.slice(0, 6).map((item) => `
+    <div class="profile-list ${options.compact ? "profile-list-compact" : ""}">
+      ${visibleItems.map((item) => `
         <div class="profile-row" title="${escapeHtml(item.name)}">
-          <span>${escapeHtml(item.name)}</span>
+          ${linkKind ? `<button class="profile-name-link" type="button" data-${linkKind}="${escapeHtml(item.name)}">${escapeHtml(item.name)}</button>` : `<span>${escapeHtml(item.name)}</span>`}
           <strong>${formatMoney(item.amount)}</strong>
           <em>${formatNumber(item.share)}%</em>
           <small>${formatNumber(item.quantity)} / ${formatNumber(item.rows)} 笔</small>
         </div>
       `).join("")}
     </div>
+  `;
+}
+
+function renderCustomerModelCatalog(models) {
+  if (!models.length) return "";
+  return `
+    <section class="profile-full-list">
+      <div class="profile-subhead">
+        <h4>全部发过型号</h4>
+        <span>${formatNumber(models.length)} 个型号，按金额从高到低</span>
+      </div>
+      ${renderProfileTopList(models, "暂无型号数据。", { limit: 0, linkKind: "model", compact: true })}
+    </section>
   `;
 }
 
@@ -542,6 +558,7 @@ function renderCustomerProfile(customerName = "") {
         ${renderProfileTopList(profile.models, "暂无型号数据。")}
       </section>
     </div>
+    ${renderCustomerModelCatalog(profile.models || [])}
   `;
 }
 
@@ -1209,6 +1226,14 @@ els.modelLookupInput.addEventListener("keydown", (event) => {
 els.modelLookupInput.addEventListener("change", () => {
   setLookupMode("model");
   renderModelLookup();
+});
+
+els.customerProfileResult.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-model]");
+  if (!button) return;
+  setLookupMode("model");
+  els.modelLookupInput.value = button.dataset.model;
+  renderModelLookup(button.dataset.model);
 });
 
 els.drawerRows.addEventListener("click", (event) => {

@@ -540,9 +540,37 @@ h3 {
   font-size: 14px;
 }
 
+.profile-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.profile-subhead h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.profile-subhead span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .profile-list {
   display: grid;
   gap: 6px;
+}
+
+.profile-full-list {
+  min-width: 0;
+}
+
+.profile-list-compact {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .profile-row {
@@ -561,6 +589,24 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.profile-name-link {
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-name-link:hover {
+  color: var(--accent-dark);
+  text-decoration: underline;
 }
 
 .profile-row strong,
