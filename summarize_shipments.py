@@ -269,21 +269,37 @@ def _extract_shipments_from_sheet(path: Path, sheet_name: str) -> list[dict]:
 
 
 def _shipment_identity(row: dict) -> tuple:
-    return (
+    base = (
         row.get("\u9001\u8d27\u65e5\u671f"),
-        str(row.get("\u9001\u8d27\u5355\u53f7") or "").strip(),
-        str(row.get("\u8ba2\u5355\u53f7") or "").strip(),
         str(row.get("\u5ba2\u6237") or "").strip(),
         str(row.get("\u5185\u90e8\u7f16\u7801") or "").strip(),
         str(row.get("\u578b\u53f7/\u54c1\u540d") or "").strip(),
+        str(row.get("\u89c4\u683c") or "").strip(),
+        str(row.get("\u5355\u4f4d") or "").strip(),
         round(float(row.get("\u6570\u91cf") or 0), 6),
+        round(float(row.get("\u5355\u4ef7") or 0), 6),
         round(float(row.get("\u91d1\u989d") or 0), 6),
     )
+    order_no = str(row.get("\u8ba2\u5355\u53f7") or "").strip()
+    delivery_no = str(row.get("\u9001\u8d27\u5355\u53f7") or "").strip()
+    if order_no:
+        return base + ("order", order_no)
+    if delivery_no:
+        return base + ("delivery", delivery_no)
+    return base + ("missing-id", "")
+
+
+def _merge_shipment_row(existing: dict, incoming: dict) -> dict:
+    merged = dict(existing)
+    for key in ("\u6765\u6e90\u6587\u4ef6", "\u9001\u8d27\u5355\u53f7", "\u8ba2\u5355\u53f7", "\u5907\u6ce8"):
+        if not str(merged.get(key) or "").strip() and str(incoming.get(key) or "").strip():
+            merged[key] = incoming[key]
+    return merged
 
 
 def extract_all_shipments(path: Path) -> list[dict]:
     rows = []
-    seen = set()
+    seen: dict[tuple, int] = {}
     for sheet_name in SHIPMENT_SHEETS:
         try:
             sheet_rows = _extract_shipments_from_sheet(path, sheet_name)
@@ -292,8 +308,9 @@ def extract_all_shipments(path: Path) -> list[dict]:
         for row in sheet_rows:
             key = _shipment_identity(row)
             if key in seen:
+                rows[seen[key]] = _merge_shipment_row(rows[seen[key]], row)
                 continue
-            seen.add(key)
+            seen[key] = len(rows)
             rows.append(row)
     if not rows:
         rows = _extract_shipments_from_sheet(path, DETAIL_SHEET)

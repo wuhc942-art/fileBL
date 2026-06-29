@@ -58,14 +58,43 @@ def _number(value) -> float:
 def _row_uid(row: dict) -> str:
     parts = [
         _date_text(row.get(DATE)),
-        _text(row.get(DELIVERY_NO)),
         _text(row.get(CUSTOMER)),
+        _text(row.get(INTERNAL_CODE)),
         _text(row.get(MODEL)),
+        _text(row.get(SPEC)),
+        _text(row.get(UNIT)),
         f"{_number(row.get(QUANTITY)):.6f}",
+        f"{_number(row.get(PRICE)):.6f}",
         f"{_number(row.get(AMOUNT)):.6f}",
-        _text(row.get(SOURCE)),
     ]
+    order_no = _text(row.get(ORDER_NO))
+    delivery_no = _text(row.get(DELIVERY_NO))
+    if order_no:
+        parts.extend(["order", order_no])
+    elif delivery_no:
+        parts.extend(["delivery", delivery_no])
+    else:
+        parts.extend(["missing-id", ""])
     return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
+
+
+def _prefer_text(current: str, incoming: str) -> str:
+    return current if _text(current) else _text(incoming)
+
+
+def _merge_duplicate_rows(rows: list[dict]) -> list[dict]:
+    merged: list[dict] = []
+    indexes: dict[str, int] = {}
+    for row in rows:
+        uid = _row_uid(row)
+        if uid not in indexes:
+            indexes[uid] = len(merged)
+            merged.append(row)
+            continue
+        existing = merged[indexes[uid]]
+        for key in (SOURCE, INTERNAL_CODE, SPEC, UNIT, DELIVERY_NO, ORDER_NO, NOTE):
+            existing[key] = _prefer_text(existing.get(key, ""), row.get(key, ""))
+    return merged
 
 
 def ensure_schema(db_path: Path) -> None:
@@ -135,6 +164,37 @@ def save_history_rows(db_path: Path, rows: list[dict]) -> int:
                 ),
             )
             inserted += cursor.rowcount
+            if cursor.rowcount == 0:
+                conn.execute(
+                    """
+                    UPDATE shipments
+                    SET source = CASE WHEN COALESCE(source, '') = '' AND ? <> '' THEN ? ELSE source END,
+                        internal_code = CASE WHEN COALESCE(internal_code, '') = '' AND ? <> '' THEN ? ELSE internal_code END,
+                        spec = CASE WHEN COALESCE(spec, '') = '' AND ? <> '' THEN ? ELSE spec END,
+                        unit = CASE WHEN COALESCE(unit, '') = '' AND ? <> '' THEN ? ELSE unit END,
+                        delivery_no = CASE WHEN COALESCE(delivery_no, '') = '' AND ? <> '' THEN ? ELSE delivery_no END,
+                        order_no = CASE WHEN COALESCE(order_no, '') = '' AND ? <> '' THEN ? ELSE order_no END,
+                        note = CASE WHEN COALESCE(note, '') = '' AND ? <> '' THEN ? ELSE note END
+                    WHERE uid = ?
+                    """,
+                    (
+                        _text(row.get(SOURCE)),
+                        _text(row.get(SOURCE)),
+                        _text(row.get(INTERNAL_CODE)),
+                        _text(row.get(INTERNAL_CODE)),
+                        _text(row.get(SPEC)),
+                        _text(row.get(SPEC)),
+                        _text(row.get(UNIT)),
+                        _text(row.get(UNIT)),
+                        _text(row.get(DELIVERY_NO)),
+                        _text(row.get(DELIVERY_NO)),
+                        _text(row.get(ORDER_NO)),
+                        _text(row.get(ORDER_NO)),
+                        _text(row.get(NOTE)),
+                        _text(row.get(NOTE)),
+                        _row_uid(row),
+                    ),
+                )
         conn.commit()
     finally:
         conn.close()
@@ -177,4 +237,4 @@ def load_history_rows(db_path: Path) -> list[dict]:
                 NOTE: record["note"] or "",
             }
         )
-    return rows
+    return _merge_duplicate_rows(rows)

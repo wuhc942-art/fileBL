@@ -220,6 +220,28 @@ class SummarizeShipmentsTest(unittest.TestCase):
             self.assertEqual(older_result.total_rows, 1)
             self.assertEqual(older_result.rows[0]["客户"], "客户历史")
 
+    def test_extract_all_shipments_merges_missing_delivery_no_duplicate_by_order(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workbook = Path(tmp) / "missing-delivery.xlsx"
+            today = dt.date(2026, 6, 23)
+            header = ["客户简称", "送货单\n号码", "订单号码", "内部编码", "型号", "规   格", "单位", "数量", "单价", "金额", "送货日期", "备注"]
+            history_row = ["客户A", "", "O1", "A001", "型号A", "规格A", "卷", 2, 10, 20, excel_serial(today), ""]
+            detail_row = ["客户A", "D1", "O1", "A001", "型号A", "规格A", "卷", 2, 10, 20, excel_serial(today), ""]
+            _write_xlsx_named_sheets(
+                workbook,
+                {
+                    "发货历史记录": [header, history_row],
+                    "发货明细": [["6月份"], [""], header, detail_row],
+                },
+            )
+
+            rows = extract_all_shipments(workbook)
+
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["送货单号"], "D1")
+
     def test_pure_adhesive_film_uses_spec_as_product_name(self):
         import tempfile
 
