@@ -1,0 +1,46 @@
+name: Build desktop packages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements-desktop.txt
+      - name: Build Windows package
+        shell: pwsh
+        run: .\build_desktop.ps1
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fa-huo-dashboard-windows
+          path: release/fa-huo-dashboard
+          retention-days: 30
+
+  macos:
+    name: macOS package
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python3 -m pip install --upgrade pip && python3 -m pip install -r requirements-desktop.txt
+      - name: Build macOS package
+        run: chmod +x ./build_mac.sh && ./build_mac.sh
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fa-huo-dashboard-mac
+          path: release/fa-huo-dashboard-mac/fa-huo-dashboard-mac.zip
+          retention-days: 30

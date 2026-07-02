@@ -1,0 +1,4 @@
+pyinstaller>=6.0
+pywebview>=5.0
+pythonnet; sys_platform == "win32"
+pyobjc; sys_platform == "darwin"
