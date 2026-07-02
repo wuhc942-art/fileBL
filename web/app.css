@@ -1201,7 +1201,7 @@ th {
 }
 
 .drawer-card {
-  width: min(620px, 100%);
+  width: min(880px, 100%);
   height: 100%;
   overflow: auto;
   border-left: 1px solid var(--border);
@@ -1264,6 +1264,10 @@ th {
 
 .drawer-table {
   max-height: none;
+}
+
+.drawer-table table {
+  min-width: 820px;
 }
 
 tbody tr:nth-child(even) td {
